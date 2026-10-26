@@ -46,8 +46,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Comprehensive local development CORS setup supporting 5173, 5174, 5175
+# Comprehensive CORS setup: Local development + Vercel / Cloud deployments
 origins = [
+    "*",
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:5175",
@@ -55,9 +56,13 @@ origins = [
     "http://127.0.0.1:5174",
     "http://127.0.0.1:5175",
 ]
+if settings.FRONTEND_URL and settings.FRONTEND_URL not in origins:
+    origins.append(settings.FRONTEND_URL)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"^https:\/\/.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
