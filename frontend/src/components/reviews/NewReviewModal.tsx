@@ -92,8 +92,11 @@ export const NewReviewModal: React.FC = () => {
       }, 1000);
     } catch (err: any) {
       console.error('Review submission error:', err);
-      const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
-      const baseUrl = rawBase.replace(/\/+$/, '');
+      const rawBase = import.meta.env.VITE_API_BASE_URL || 'https://brandprint-ai-backend.onrender.com';
+      let baseUrl = rawBase.replace(/\/+$/, '');
+      if (typeof window !== 'undefined' && window.location.protocol === 'https:' && baseUrl.startsWith('http://') && !baseUrl.includes('localhost')) {
+        baseUrl = baseUrl.replace('http://', 'https://');
+      }
       const detail =
         err?.response?.data?.detail ||
         err?.message ||

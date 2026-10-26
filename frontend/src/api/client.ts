@@ -1,7 +1,11 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
-export const BASE_URL = rawBaseUrl.replace(/\/+$/, '');
+let rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://brandprint-ai-backend.onrender.com';
+let resolvedBaseUrl = rawBaseUrl.replace(/\/+$/, '');
+if (typeof window !== 'undefined' && window.location.protocol === 'https:' && resolvedBaseUrl.startsWith('http://') && !resolvedBaseUrl.includes('localhost')) {
+  resolvedBaseUrl = resolvedBaseUrl.replace('http://', 'https://');
+}
+export const BASE_URL = resolvedBaseUrl;
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,

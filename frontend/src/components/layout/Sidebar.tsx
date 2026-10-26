@@ -14,8 +14,11 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
-const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
-const baseUrl = rawBaseUrl.replace(/\/+$/, '');
+let rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://brandprint-ai-backend.onrender.com';
+let baseUrl = rawBaseUrl.replace(/\/+$/, '');
+if (typeof window !== 'undefined' && window.location.protocol === 'https:' && baseUrl.startsWith('http://') && !baseUrl.includes('localhost')) {
+  baseUrl = baseUrl.replace('http://', 'https://');
+}
 
 export const Sidebar: React.FC = () => {
   const { backendConnected: appConnected, isCheckingHealth: appChecking, refreshHealth: appRefresh } = useApp();
