@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-ocean: #0b3c49;
+    --color-ocean-dark: #072730;
+    --color-ocean-light: #144f60;
+    --color-amber: #f4a321;
+    --color-amber-hover: #de9018;
+    --color-amber-light: #fef3e2;
+    --color-cream: #fbf9f4;
+    --color-cream-dark: #f3eee3;
+    --color-sand: #e8e2d5;
+    --color-text-dark: #1a272b;
+    --color-text-muted: #5d7177;
+    --color-charcoal: #1a272b;
+  }
+
+  body {
+    background-color: #fbf9f4;
+    color: #1a272b;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* Custom elegant scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #fbf9f4;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #e8e2d5;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #d4ccbd;
+  }
+}
+
+@layer utilities {
+  .white-card,
+  .glass-panel,
+  .glass-card {
+    background-color: #ffffff;
+    border: 1px solid #e8e2d5;
+    border-radius: 1rem;
+    box-shadow: 0 1px 3px 0 rgba(11, 60, 73, 0.06);
+  }
+
+  .white-card-elevated {
+    background-color: #ffffff;
+    border: 1px solid #e8e2d5;
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px -1px rgba(11, 60, 73, 0.08);
+  }
+
+  .white-card-hover,
+  .glass-card-hover {
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .white-card-hover:hover,
+  .glass-card-hover:hover {
+    border-color: #f4a321;
+    box-shadow: 0 10px 15px -3px rgba(11, 60, 73, 0.08);
+  }
+
+  .btn-amber-primary {
+    background-color: #f4a321;
+    color: #ffffff;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    transition: all 0.15s ease-in-out;
+  }
+
+  .btn-amber-primary:hover {
+    background-color: #de9018;
+  }
+}
