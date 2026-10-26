@@ -14,14 +14,13 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
-const portMatch = BASE_URL.match(/:(\d+)/);
-const PORT_LABEL = portMatch ? `:${portMatch[1]}` : ':8001';
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+const baseUrl = rawBaseUrl.replace(/\/+$/, '');
 
 export const Sidebar: React.FC = () => {
   const { backendConnected: appConnected, isCheckingHealth: appChecking, refreshHealth: appRefresh } = useApp();
 
-  // Active Health Monitor Hook polling /health on BASE_URL every 10 seconds
+  // Active Health Monitor Hook polling /health on baseUrl every 10 seconds
   const [isHealthy, setIsHealthy] = useState<boolean>(true);
   const [isChecking, setIsChecking] = useState<boolean>(false);
 
@@ -29,8 +28,8 @@ export const Sidebar: React.FC = () => {
     setIsChecking(true);
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
-      const res = await fetch(`${BASE_URL}/health`, {
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch(`${baseUrl}/health`, {
         method: 'GET',
         headers: { Accept: 'application/json' },
         signal: controller.signal,
@@ -59,7 +58,7 @@ export const Sidebar: React.FC = () => {
     await Promise.allSettled([checkHealth(), appRefresh()]);
   };
 
-  const isConnected = isHealthy && appConnected;
+  const isConnected = isHealthy || appConnected;
   const checking = isChecking || appChecking;
 
   const navItems = [
@@ -119,14 +118,17 @@ export const Sidebar: React.FC = () => {
           <div className="flex items-center gap-2">
             {isConnected ? (
               <span
-                className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 shadow-sm"
-                title={`Backend connected on port ${PORT_LABEL}`}
+                className="relative flex h-2.5 w-2.5 shrink-0"
+                title={`Backend connected at ${baseUrl}`}
                 id="indicator-healthy-dot"
-              />
+              >
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-sm" />
+              </span>
             ) : (
               <span
                 className="relative flex h-2.5 w-2.5 shrink-0"
-                title={`Reconnecting to backend on port ${PORT_LABEL}...`}
+                title={`Reconnecting to backend at ${baseUrl}...`}
                 id="indicator-reconnecting-dot"
               >
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-amber opacity-75" />
@@ -134,7 +136,7 @@ export const Sidebar: React.FC = () => {
               </span>
             )}
             <span className="text-white font-medium text-[11px] select-text">
-              {isConnected ? `Connected (${PORT_LABEL})` : `Reconnecting... (${PORT_LABEL})`}
+              {isConnected ? 'Connected' : 'Reconnecting...'}
             </span>
           </div>
 
@@ -216,7 +218,7 @@ export const Sidebar: React.FC = () => {
           <span className="text-[10px] font-mono text-brand-amber">Strict Grounding</span>
         </div>
         <a
-          href={`${BASE_URL}/docs`}
+          href={`${baseUrl}/docs`}
           target="_blank"
           rel="noreferrer"
           className="flex items-center justify-between pt-1.5 text-[10px] font-mono text-[#8fa8af] hover:text-brand-amber transition-colors border-t border-brand-oceanLight/20"

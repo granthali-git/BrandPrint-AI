@@ -1,6 +1,7 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+export const BASE_URL = rawBaseUrl.replace(/\/+$/, '');
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,
@@ -45,7 +46,7 @@ apiClient.interceptors.response.use(
       parsedDetail ||
       error?.response?.data?.message ||
       (error?.message === 'Network Error'
-        ? 'Backend unreachable at port 8001. Please verify Uvicorn is active.'
+        ? `Backend unreachable at ${BASE_URL}. Please verify backend service is active.`
         : error?.message || 'An unexpected error occurred');
 
     const err = new Error(message);

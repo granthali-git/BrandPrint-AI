@@ -92,7 +92,8 @@ export const NewReviewModal: React.FC = () => {
       }, 1000);
     } catch (err: any) {
       console.error('Review submission error:', err);
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+      const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+      const baseUrl = rawBase.replace(/\/+$/, '');
       const detail =
         err?.response?.data?.detail ||
         err?.message ||
