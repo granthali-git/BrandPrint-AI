@@ -203,10 +203,10 @@ def extract_text_via_gemini_vision(file_bytes: bytes, api_key: str) -> str:
             "Content-Type": "application/json"
         }
 
-        for model_name in ("gemini-flash-lite-latest", "gemini-3.1-flash-lite", "gemini-flash-latest"):
+        for model_name in ("gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"):
             endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
             try:
-                with httpx.Client(timeout=25.0) as client:
+                with httpx.Client(timeout=8.0) as client:
                     res = client.post(endpoint, headers=headers, json=payload)
                     if res.status_code == 200:
                         data = res.json()
@@ -218,6 +218,9 @@ def extract_text_via_gemini_vision(file_bytes: bytes, api_key: str) -> str:
                                 if text:
                                     logger.info(f"Gemini Vision ({model_name}) successfully extracted {len(text)} chars from image.")
                                     return text
+                    elif res.status_code in (429, 503):
+                        logger.debug(f"Gemini Vision {model_name} rate limited/unavailable (status {res.status_code}).")
+                        break
             except Exception as ex:
                 logger.debug(f"Gemini Vision model {model_name} failed: {ex}")
     except Exception as e:

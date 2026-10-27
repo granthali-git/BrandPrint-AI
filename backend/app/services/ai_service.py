@@ -228,9 +228,9 @@ Output:
 If there are no guideline violations or document inconsistencies in context, output strictly an empty JSON array: []"""
 
 GEMINI_MODEL_CANDIDATES = [
-    "gemini-flash-lite-latest",
     "gemini-3.1-flash-lite",
     "gemini-flash-latest",
+    "gemini-flash-lite-latest",
     "gemini-3.5-flash-lite",
     "gemini-3.8-flash",
 ]
@@ -927,7 +927,7 @@ def call_gemini_api(
     for model_name in GEMINI_MODEL_CANDIDATES[:3]:
         endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
         try:
-            with httpx.Client(timeout=15.0) as client:
+            with httpx.Client(timeout=8.0) as client:
                 # 1. Primary: Pass API key via header
                 response = client.post(endpoint, headers=headers, json=payload)
                 
@@ -949,7 +949,7 @@ def call_gemini_api(
                 else:
                     last_error = f"Model '{model_name}' returned HTTP {response.status_code}: {response.text[:200]}"
                     logger.debug(last_error)
-                    if response.status_code == 429:
+                    if response.status_code in (429, 503):
                         break
         except Exception as e:
             last_error = f"Model '{model_name}' failed: {e}"

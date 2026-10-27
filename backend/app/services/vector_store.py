@@ -45,10 +45,11 @@ class RuleDict(dict):
 
 
 def get_embedding_model():
-    """Lazy load the sentence-transformers model singleton with low-memory safeguards."""
+    """Lazy load the sentence-transformers model singleton if explicitly enabled and memory allows."""
     global _embedding_model
-    # Render free tier has strict 512MB RAM; bypass torch/transformers on Render to prevent OOM termination
-    if os.getenv("RENDER") or os.getenv("LOW_MEMORY_MODE", "").lower() in ("true", "1"):
+    # Render free tier has strict 512MB RAM and HuggingFace download timeouts;
+    # Default to fast, reliable zero-RAM embeddings unless USE_SENTENCE_TRANSFORMERS is explicitly set.
+    if os.getenv("RENDER") or os.getenv("LOW_MEMORY_MODE", "true").lower() in ("true", "1") or not os.getenv("USE_SENTENCE_TRANSFORMERS"):
         return None
 
     if _embedding_model is None:
