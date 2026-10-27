@@ -24,16 +24,16 @@ export const reviewsApi = {
   submitReview: async (
     payload: FormData | SubmitReviewPayload
   ): Promise<ReviewResponse> => {
+    let result: ReviewResponse;
+
     if (payload instanceof FormData) {
       const response = await apiClient.post<ReviewResponse>('/api/reviews', payload, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 180000, // 3 minutes for complex multi-modal files
       });
-      return response.data;
-    }
-
-    // If payload contains a file, construct FormData automatically
-    if (payload.file || payload.content_type === 'file') {
+      result = response.data;
+    } else if (payload.file || payload.content_type === 'file') {
+      // If payload contains a file, construct FormData automatically
       const formData = new FormData();
       formData.append('brand_id', String(payload.brand_id));
       formData.append('content_type', payload.content_type || 'file');
@@ -51,14 +51,35 @@ export const reviewsApi = {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 180000, // 3 minutes for complex documents/images
       });
-      return response.data;
+      result = response.data;
+    } else {
+      // Submit as JSON for text/URL
+      const response = await apiClient.post<ReviewResponse>('/api/reviews', payload, {
+        timeout: 120000, // 2 minutes for AI pipeline execution
+      });
+      result = response.data;
     }
 
-    // Submit as JSON for text/URL
-    const response = await apiClient.post<ReviewResponse>('/api/reviews', payload, {
-      timeout: 120000, // 2 minutes for AI pipeline execution
-    });
-    return response.data;
+    // Polling support if review is executing asynchronously
+    if ((result as any)?.status === 'analyzing' || (result?.submission as any)?.status === 'analyzing') {
+      const subId = result.submission?.id || (result as any)?.id || (result as any)?.job_id;
+      if (subId) {
+        for (let i = 0; i < 45; i++) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          const jobStatus = await reviewsApi.getJobStatus(subId);
+          if (
+            jobStatus.completed ||
+            jobStatus.status === 'findings_ready' ||
+            jobStatus.status === 'ready_for_review' ||
+            jobStatus.status === 'approved'
+          ) {
+            return await reviewsApi.getById(subId);
+          }
+        }
+      }
+    }
+
+    return result;
   },
 
   /**

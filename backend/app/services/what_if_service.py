@@ -97,7 +97,7 @@ Return ONLY a valid JSON object matching this schema:
 If violations remain, set excellence_status to 'needs_work' and positive_impacts to [].
 If it merely meets rules without elevated proof, set excellence_status to 'meets_standard' and excellence_score to 100."""
 
-    candidate_models = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-flash-latest"]
+    candidate_models = ["gemini-3.1-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.5-flash-lite"]
     for model in candidate_models:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
@@ -105,8 +105,10 @@ If it merely meets rules without elevated proof, set excellence_status to 'meets
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1000}
             }
-            with httpx.Client(timeout=3.0) as client:
+            with httpx.Client(timeout=8.0) as client:
                 res = client.post(url, json=payload)
+                if res.status_code in (429, 503):
+                    break
                 if res.status_code == 200:
                     data = res.json()
                     candidates = data.get("candidates", [])

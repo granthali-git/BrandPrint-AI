@@ -328,7 +328,7 @@ export const ReviewStudio: React.FC = () => {
         formData.append('raw_content', rawText);
       } else if (inputTab === 'file') {
         if (!selectedFile) {
-          setEvalError('Please select a PDF (.pdf), Word (.docx), PowerPoint (.pptx), or Text (.txt) file to upload.');
+          setEvalError('Please select a creative asset or document (Image, PDF, Word, PowerPoint, or Text file) to upload.');
           setIsEvaluating(false);
           return;
         }

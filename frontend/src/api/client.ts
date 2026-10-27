@@ -50,9 +50,11 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error: any) => {
-    if (error?.response?.status === 401) {
+    const status = error?.response?.status;
+    if (status === 401) {
       console.warn('[BrandPrint AI Client] Unauthorized 401: Token may have expired.');
     }
+
     const rawDetail = error?.response?.data?.detail;
     const parsedDetail = Array.isArray(rawDetail)
       ? rawDetail.map((d: any) => d.msg || JSON.stringify(d)).join(', ')
@@ -60,12 +62,23 @@ apiClient.interceptors.response.use(
         ? JSON.stringify(rawDetail)
         : rawDetail;
 
-    const message =
-      parsedDetail ||
-      error?.response?.data?.message ||
-      (error?.message === 'Network Error'
-        ? `Backend unreachable at ${BASE_URL}. The cloud service may be spinning up from sleep (Render free tier takes ~20s to wake up). Please wait a moment and retry, or ensure your local backend is running.`
-        : error?.message || 'An unexpected error occurred');
+    let message: string;
+
+    if (error?.code === 'ECONNABORTED' || (error?.message && error.message.toLowerCase().includes('timeout'))) {
+      message = 'Request timed out while analyzing the asset. Multi-modal extraction or AI grounding took longer than expected. Please retry or test with a smaller image.';
+    } else if (status === 502) {
+      message = 'Cloud service temporarily unavailable (HTTP 502 Bad Gateway). The Render backend may be waking up from sleep or restarting. Please wait 15-30 seconds and retry.';
+    } else if (status === 504) {
+      message = 'Gateway timeout (HTTP 504). The compliance audit exceeded the cloud proxy timeout. Please retry.';
+    } else if (status === 413) {
+      message = 'File too large (HTTP 413). Please upload an asset under 10MB.';
+    } else if (status === 401) {
+      message = parsedDetail || 'Authentication required or session expired. Please sign in again.';
+    } else if (error?.message === 'Network Error' && !error?.response) {
+      message = `Unable to connect to backend at ${BASE_URL}. The cloud service may be spinning up from sleep (Render free tier takes ~20s to wake up). Please wait a moment and retry.`;
+    } else {
+      message = parsedDetail || error?.response?.data?.message || error?.message || 'An unexpected error occurred.';
+    }
 
     const err = new Error(message);
     (err as any).response = error?.response;

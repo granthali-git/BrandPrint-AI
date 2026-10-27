@@ -59,12 +59,14 @@ app = FastAPI(
 # Comprehensive CORS setup: Local development + Vercel / Cloud deployments
 origins = [
     "*",
+    "https://brand-print-ai.vercel.app",
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:5175",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
     "http://127.0.0.1:5175",
+    "http://localhost:3000",
 ]
 if settings.FRONTEND_URL and settings.FRONTEND_URL not in origins:
     origins.append(settings.FRONTEND_URL)
@@ -129,7 +131,7 @@ def health_check():
     """System health check endpoint."""
     return {
         "status": "healthy",
-        "port": 8001,
+        "port": int(os.environ.get("PORT", 8000)),
         "service": "BrandPrint AI Backend",
         "version": "1.0.0",
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -154,4 +156,5 @@ def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)

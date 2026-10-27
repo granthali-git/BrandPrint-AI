@@ -235,6 +235,22 @@ def extract_from_image(file_bytes: bytes) -> str:
     if not file_bytes:
         return ""
 
+    # Check for custom or standard system tesseract paths
+    tess_cmd = os.getenv("TESSERACT_CMD")
+    if tess_cmd and os.path.exists(tess_cmd):
+        pytesseract.pytesseract.tesseract_cmd = tess_cmd
+    elif not getattr(extract_from_image, "_checked_paths", False):
+        for candidate in [
+            "/usr/bin/tesseract",
+            "/usr/local/bin/tesseract",
+            "/opt/homebrew/bin/tesseract",
+            r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        ]:
+            if os.path.exists(candidate):
+                pytesseract.pytesseract.tesseract_cmd = candidate
+                break
+        setattr(extract_from_image, "_checked_paths", True)
+
     file_stream = io.BytesIO(file_bytes)
     try:
         image = Image.open(file_stream)

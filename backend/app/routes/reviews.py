@@ -701,11 +701,20 @@ def get_review_job_status(
         Finding.version == submission.current_version
     ).count()
 
+    is_completed = submission.status in (
+        SubmissionStatus.findings_ready,
+        SubmissionStatus.ready_for_review,
+        SubmissionStatus.approved,
+        SubmissionStatus.rejected,
+        SubmissionStatus.changes_required
+    )
+
     return {
         "submission_id": submission.id,
         "status": submission.status.value if hasattr(submission.status, "value") else str(submission.status),
-        "completed": submission.status in (SubmissionStatus.findings_ready, SubmissionStatus.ready_for_review, SubmissionStatus.approved),
-        "progress": 100,
-        "findings_count": findings_count
+        "completed": is_completed,
+        "progress": 100 if is_completed else 45,
+        "findings_count": findings_count,
+        "total_findings": findings_count
     }
 

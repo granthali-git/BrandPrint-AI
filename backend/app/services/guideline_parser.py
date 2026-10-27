@@ -195,9 +195,9 @@ def call_llm_rule_extraction(content_chunk: str, api_key: Optional[str] = None) 
         return []
 
     gemini_models = [
-        "gemini-2.5-flash",
-        "gemini-1.5-flash",
+        "gemini-3.1-flash-lite",
         "gemini-flash-latest",
+        "gemini-flash-lite-latest",
         "gemini-3.5-flash-lite",
     ]
 
@@ -214,10 +214,12 @@ def call_llm_rule_extraction(content_chunk: str, api_key: Optional[str] = None) 
     for model_name in gemini_models:
         endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
         try:
-            with httpx.Client(timeout=4.0) as client:
+            with httpx.Client(timeout=8.0) as client:
                 res = client.post(endpoint, headers=headers, json=payload)
                 if res.status_code in (401, 403, 404):
                     res = client.post(f"{endpoint}?key={effective_api_key.strip()}", json=payload)
+                if res.status_code in (429, 503):
+                    break
                 if res.status_code == 200:
                     data = res.json()
                     parts = data.get("candidates", [])[0].get("content", {}).get("parts", [])

@@ -375,9 +375,9 @@ def call_llm_contradiction_audit(
         # 1. Gemini Models
         if effective_api_key and effective_api_key.strip():
             gemini_models = [
-                "gemini-2.5-flash",
-                "gemini-1.5-flash",
+                "gemini-3.1-flash-lite",
                 "gemini-flash-latest",
+                "gemini-flash-lite-latest",
                 "gemini-3.5-flash-lite",
             ]
             full_prompt = f"{AUTONOMOUS_AUDIT_PROMPT_SYSTEM}\n\n{prompt}"
@@ -392,10 +392,13 @@ def call_llm_contradiction_audit(
             for model_name in gemini_models:
                 endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
                 try:
-                    with httpx.Client(timeout=2.5) as client:
+                    with httpx.Client(timeout=8.0) as client:
                         res = client.post(endpoint, headers=headers, json=payload)
                         if res.status_code in (401, 403):
                             logger.warning(f"Gemini API key rejected with status {res.status_code}. Halting Gemini requests.")
+                            break
+                        if res.status_code in (429, 503):
+                            logger.debug(f"Gemini model '{model_name}' rate limited/unavailable (status {res.status_code}).")
                             break
                         if res.status_code == 404:
                             continue
