@@ -1,4 +1,5 @@
 """FastAPI Main Application entry point for BrandPrint AI."""
+import os
 from datetime import datetime, timezone
 import logging
 from contextlib import asynccontextmanager
@@ -24,15 +25,16 @@ logger = logging.getLogger("brandprint.main")
 async def lifespan(app: FastAPI):
     """Lifespan event handler for application startup and shutdown."""
     logger.info("Initializing BrandPrint AI Backend...")
-    # Attempt table creation if running with local or accessible database
-    try:
-        Base.metadata.create_all(bind=engine)
-        logger.info("Database schema verified/initialized successfully.")
-    except Exception as e:
-        logger.warning(
-            f"Note: Could not run metadata create_all against database URL ({e}). "
-            "Ensure Supabase database is active and reachable."
-        )
+    # Attempt table creation if running with local or accessible database (skip during tests)
+    if not os.environ.get("TESTING") and not os.environ.get("PYTEST_CURRENT_TEST"):
+        try:
+            Base.metadata.create_all(bind=engine)
+            logger.info("Database schema verified/initialized successfully.")
+        except Exception as e:
+            logger.warning(
+                f"Note: Could not run metadata create_all against database URL ({e}). "
+                "Ensure Supabase database is active and reachable."
+            )
     yield
     logger.info("Shutting down BrandPrint AI Backend...")
 
@@ -123,7 +125,8 @@ def health_check():
         "service": "BrandPrint AI Backend",
         "version": "1.0.0",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "database_configured": bool(settings.SUPABASE_DB_URL)
+        "database_configured": bool(settings.SUPABASE_DB_URL),
+        "cors_origins": origins
     }
 
 

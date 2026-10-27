@@ -208,6 +208,39 @@ def test_auth_registration_and_login_flow():
     assert bad_login.status_code == 401
 
 
+def test_enterprise_auth_extended():
+    """Verify enterprise registration, profile name extraction, and forgot password endpoint."""
+    reg_payload = {
+        "email": "enterprise_user@brandprint.ai",
+        "password": "SecurePassword123!",
+        "full_name": "Eleanor Vance",
+        "company": "Hill House Inc"
+    }
+    reg_res = client.post("/api/auth/register", json=reg_payload)
+    assert reg_res.status_code == 201, reg_res.text
+    data = reg_res.json()
+    assert "access_token" in data
+    assert data["user"]["email"] == "enterprise_user@brandprint.ai"
+    assert data["user"]["name"] == "Eleanor Vance"
+    assert data["user"]["company"] == "Hill House Inc"
+
+    token = data["access_token"]
+
+    # Verify /api/auth/me
+    me_res = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me_res.status_code == 200
+    me_data = me_res.json()
+    assert me_data["name"] == "Eleanor Vance"
+    assert me_data["email"] == "enterprise_user@brandprint.ai"
+
+    # Verify /api/auth/forgot-password
+    fp_res = client.post("/api/auth/forgot-password", json={"email": "enterprise_user@brandprint.ai"})
+    assert fp_res.status_code == 200
+    fp_data = fp_res.json()
+    assert fp_data["status"] == "success"
+    assert "sent to your email" in fp_data["message"]
+
+
 def test_role_based_access_control():
     from fastapi import Depends
     from app.core.security import require_role

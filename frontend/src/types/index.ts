@@ -3,6 +3,9 @@ export type UserRole = 'Admin' | 'BrandManager' | 'Reviewer' | 'Creator';
 export interface User {
   id: number | string;
   email: string;
+  name?: string;
+  full_name?: string;
+  company?: string;
   role: UserRole;
   created_at?: string;
 }

@@ -22,8 +22,11 @@ export const api = apiClient;
 // Request interceptor: automatically attach Authorization: Bearer <token>
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Check both standard token keys
-    const token = localStorage.getItem('token') || localStorage.getItem('access_token');
+    // Check BrandPrint AI auth token key and fallbacks
+    const token =
+      localStorage.getItem('brandprint_auth_token') ||
+      localStorage.getItem('token') ||
+      localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

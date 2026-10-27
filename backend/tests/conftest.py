@@ -1,13 +1,16 @@
 """Shared test configuration, in-memory SQLite database, and TestClient fixture."""
 import os
 import sys
+
+os.environ["TESTING"] = "1"
+
+# Ensure backend root is on sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
-
-# Ensure backend root is on sys.path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.core.database import Base, get_db
 from app.main import app

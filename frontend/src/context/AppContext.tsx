@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { dashboardApi } from '../api/dashboard';
+import { useAuth } from './AuthContext';
 
 export interface BrandInfo {
   id: number | string;
@@ -42,12 +43,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [backendConnected, setBackendConnected] = useState(true);
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
 
-  const [currentUser] = useState<AppUser>({
-    id: 1,
-    email: 'tester@brandprint.ai',
-    name: 'Compliance Lead',
-    role: 'Brand Safety Admin',
-  });
+  let authUser: any = null;
+  try {
+    const auth = useAuth();
+    authUser = auth?.user;
+  } catch {
+    authUser = null;
+  }
+
+  const currentUser: AppUser = {
+    id: authUser?.id || 1,
+    email: authUser?.email || 'tester@brandprint.ai',
+    name: authUser?.name || authUser?.full_name || 'Compliance Lead',
+    role: authUser?.role || 'Brand Safety Admin',
+  };
 
   const checkHealth = async () => {
     setIsCheckingHealth(true);
