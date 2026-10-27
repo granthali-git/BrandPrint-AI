@@ -13,38 +13,23 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-
-let rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://brandprint-ai-backend.onrender.com';
-let baseUrl = rawBaseUrl.replace(/\/+$/, '');
-if (typeof window !== 'undefined' && window.location.protocol === 'https:' && baseUrl.startsWith('http://') && !baseUrl.includes('localhost')) {
-  baseUrl = baseUrl.replace('http://', 'https://');
-}
+import { API_BASE_URL } from '../../api/client';
 
 export const Sidebar: React.FC = () => {
-  const { backendConnected: appConnected, isCheckingHealth: appChecking, refreshHealth: appRefresh } = useApp();
+  const { backendConnected: _appConnected, isCheckingHealth: appChecking, refreshHealth: appRefresh } = useApp();
 
-  // Active Health Monitor Hook polling /health on baseUrl every 10 seconds
+  // Active Health Monitor Hook polling /api/system-status on API_BASE_URL every 10 seconds
   const [isHealthy, setIsHealthy] = useState<boolean>(true);
   const [isChecking, setIsChecking] = useState<boolean>(false);
 
-  const checkHealth = useCallback(async () => {
+  const checkStatus = useCallback(async () => {
     setIsChecking(true);
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
-      const res = await fetch(`${baseUrl}/health`, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      if (!res.ok) {
-        setIsHealthy(false);
-      } else {
-        const data = await res.json();
-        setIsHealthy(data?.status === 'healthy');
-      }
-    } catch {
+      const res = await fetch(`${API_BASE_URL}/api/system-status`, { method: 'GET' });
+      if (res.ok) setIsHealthy(true);
+      else setIsHealthy(false);
+    } catch (err) {
+      console.warn("Status ping warning:", err);
       setIsHealthy(false);
     } finally {
       setIsChecking(false);
@@ -52,16 +37,15 @@ export const Sidebar: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    checkHealth();
-    const interval = setInterval(checkHealth, 10000);
+    checkStatus();
+    const interval = setInterval(checkStatus, 10000);
     return () => clearInterval(interval);
-  }, [checkHealth]);
+  }, [checkStatus]);
 
   const handleManualRefresh = async () => {
-    await Promise.allSettled([checkHealth(), appRefresh()]);
+    await Promise.allSettled([checkStatus(), appRefresh?.()]);
   };
 
-  const isConnected = isHealthy || appConnected;
   const checking = isChecking || appChecking;
 
   const navItems = [
@@ -119,19 +103,18 @@ export const Sidebar: React.FC = () => {
       <div className="p-3 mx-3 my-3 rounded-xl bg-brand-ocean/50 border border-brand-oceanLight/40 space-y-2">
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
-            {isConnected ? (
+            {isHealthy ? (
               <span
                 className="relative flex h-2.5 w-2.5 shrink-0"
-                title={`Backend connected at ${baseUrl}`}
+                title="Connected"
                 id="indicator-healthy-dot"
               >
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-sm" />
               </span>
             ) : (
               <span
                 className="relative flex h-2.5 w-2.5 shrink-0"
-                title={`Reconnecting to backend at ${baseUrl}...`}
+                title="Reconnecting..."
                 id="indicator-reconnecting-dot"
               >
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-amber opacity-75" />
@@ -139,7 +122,7 @@ export const Sidebar: React.FC = () => {
               </span>
             )}
             <span className="text-white font-medium text-[11px] select-text">
-              {isConnected ? 'Connected' : 'Reconnecting...'}
+              {isHealthy ? 'Connected' : 'Reconnecting...'}
             </span>
           </div>
 
@@ -221,7 +204,7 @@ export const Sidebar: React.FC = () => {
           <span className="text-[10px] font-mono text-brand-amber">Strict Grounding</span>
         </div>
         <a
-          href={`${baseUrl}/docs`}
+          href={`${API_BASE_URL}/docs`}
           target="_blank"
           rel="noreferrer"
           className="flex items-center justify-between pt-1.5 text-[10px] font-mono text-[#8fa8af] hover:text-brand-amber transition-colors border-t border-brand-oceanLight/20"

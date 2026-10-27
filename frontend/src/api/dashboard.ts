@@ -26,8 +26,13 @@ export const dashboardApi = {
    * System operational and Supabase connection health check
    */
   getHealth: async (): Promise<HealthCheckResponse> => {
-    const response = await apiClient.get<HealthCheckResponse>('/health');
-    return response.data;
+    try {
+      const response = await apiClient.get<HealthCheckResponse>('/api/system-status');
+      return response.data;
+    } catch {
+      const response = await apiClient.get<HealthCheckResponse>('/health');
+      return response.data;
+    }
   },
 };
 

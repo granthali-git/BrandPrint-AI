@@ -103,6 +103,12 @@ def check_contradictions_direct(
 
 
 
+@app.get("/api/system-status", tags=["System"], summary="System status endpoint")
+@app.get("/api/ping", tags=["System"], summary="Ping endpoint")
+def system_status():
+    return {"status": "healthy", "service": "brandprint-core"}
+
+
 @app.get(
     "/health",
     tags=["System"],

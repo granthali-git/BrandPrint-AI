@@ -43,8 +43,8 @@ export default {
         charcoal: '#1a272b',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Fira Code', 'monospace']
+        sans: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'Fira Code', 'monospace']
       },
       boxShadow: {
         'amber-glow': '0 0 20px -3px rgba(244, 163, 33, 0.35)',
