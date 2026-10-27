@@ -1,7 +1,7 @@
 """Finding database model representing AI-detected brand compliance findings."""
 import uuid
 import enum
-from sqlalchemy import Column, String, Text, Integer, DateTime, ForeignKey, Enum
+from sqlalchemy import Column, String, Text, Integer, DateTime, ForeignKey, Enum, Boolean
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
@@ -43,6 +43,9 @@ class Finding(Base):
     explanation = Column(Text, nullable=False)
     cited_quote = Column(Text, nullable=True)
     suggested_fix = Column(Text, nullable=True)
+    is_visual = Column(Boolean, default=False, nullable=True)
+    visual_element = Column(String(255), nullable=True)
+    observed_evidence = Column(Text, nullable=True)
     user_action = Column(
         Enum(UserAction, name="user_action", native_enum=False),
         nullable=False,

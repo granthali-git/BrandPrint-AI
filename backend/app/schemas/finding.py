@@ -22,6 +22,9 @@ class FindingBase(BaseModel):
     explanation: str
     cited_quote: Optional[str] = None
     suggested_fix: Optional[str] = None
+    is_visual: Optional[bool] = False
+    visual_element: Optional[str] = None
+    observed_evidence: Optional[str] = None
     fix_variations: Optional[List[Dict[str, Any]]] = None
     strategic_tip: Optional[str] = None
     user_action: UserAction = UserAction.pending

@@ -67,6 +67,9 @@ export interface Finding {
   fix_variations?: FixVariation[] | null;
   strategic_tip?: string | null;
   user_action: UserAction;
+  is_visual?: boolean;
+  visual_element?: string | null;
+  observed_evidence?: string | null;
   created_at?: string;
   rule?: GuidelineRule | null;
 }
@@ -80,6 +83,10 @@ export interface ContentSubmission {
   extracted_text?: string | null;
   current_version: number;
   status: SubmissionStatus;
+  image_preview_url?: string | null;
+  visual_analysis_status?: 'complete' | 'incomplete' | 'failed' | null;
+  visual_analysis_message?: string | null;
+  is_image_asset?: boolean;
   created_at: string;
   updated_at?: string;
   findings?: Finding[];
@@ -92,6 +99,11 @@ export interface ReviewResponse {
   total_findings: number;
   deterministic_count?: number;
   ai_grounded_count?: number;
+  visual_findings_count?: number;
+  image_preview_url?: string | null;
+  visual_analysis_status?: 'complete' | 'incomplete' | 'failed' | null;
+  visual_analysis_message?: string | null;
+  is_image_asset?: boolean;
   brand_id?: number | string;
   status?: SubmissionStatus;
 }

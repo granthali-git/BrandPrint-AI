@@ -217,10 +217,10 @@ export const FindingCard: React.FC<FindingCardProps> = ({
           )}
 
           {/* Dedicated Inconsistency Badge: Visual & Media Usage */}
-          {isVisualBreach && (
+          {(isVisualBreach || finding.is_visual) && (
             <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-50 text-purple-900 border border-purple-200 flex items-center gap-1 shadow-2xs">
               <Palette className="w-3 h-3 text-purple-600" />
-              Visual Usage
+              {finding.is_visual ? 'Visual Design Audit' : 'Visual Usage'}
             </span>
           )}
 
@@ -250,9 +250,31 @@ export const FindingCard: React.FC<FindingCardProps> = ({
           </div>
           {finding.context_span && (
             <div className="text-[11px] text-brand-charcoalMuted italic bg-brand-cream/60 p-2 rounded-lg border border-brand-sand/60">
-              <span className="font-semibold text-brand-charcoal not-italic">Context: </span>
+              <span className="font-semibold text-brand-charcoal not-italic">Context / Region: </span>
               "{finding.context_span}"
             </div>
+          )}
+        </div>
+      )}
+
+      {/* 2a. Dedicated Observed Visual Evidence Box for Posters & Images */}
+      {(finding.is_visual || finding.observed_evidence || finding.visual_element) && (
+        <div className="bg-sky-50/70 border border-sky-200/90 rounded-xl p-3.5 space-y-2 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-mono uppercase font-bold text-sky-900 flex items-center gap-1.5">
+              <Eye className="w-3.5 h-3.5 text-sky-600" />
+              Observed Visual Evidence
+            </span>
+            {finding.visual_element && (
+              <span className="text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-sky-200/70 text-sky-900 border border-sky-300/60">
+                Element: {finding.visual_element}
+              </span>
+            )}
+          </div>
+          {finding.observed_evidence && (
+            <p className="text-xs text-sky-950 leading-relaxed font-sans bg-white/80 p-2.5 rounded-lg border border-sky-100">
+              {finding.observed_evidence}
+            </p>
           )}
         </div>
       )}

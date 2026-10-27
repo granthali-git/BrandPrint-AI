@@ -52,6 +52,10 @@ from app.services.extractors import (
 from app.services.grounding_validator import validate_findings
 from app.services.vector_store import retrieve_relevant_rules
 from app.services.what_if_service import simulate_what_if_review
+from app.services.vision_service import (
+    validate_and_decode_image,
+    analyze_poster_visual_design
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/reviews", tags=["Reviews"])
@@ -116,6 +120,12 @@ async def create_content_review(
     extracted_text = ""
     raw_html: Optional[str] = None
     extracted_images: Optional[List[Dict[str, Any]]] = None
+    is_image_asset: bool = False
+    image_preview_url: Optional[str] = None
+    image_mime_type: str = "image/jpeg"
+    visual_findings: List[Dict[str, Any]] = []
+    visual_status: str = "complete"
+    visual_message: str = ""
 
     # 2. Content Ingestion & Extraction
     if content_type == ContentType.file or file is not None:
@@ -127,9 +137,20 @@ async def create_content_review(
         file_bytes = await file.read()
         filename = file.filename or "upload"
 
-        # Image OCR vs Document Parser (run in threadpool to prevent blocking the event loop)
-        if any(filename.lower().endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".webp")):
+        # Image OCR & Multimodal Vision vs Document Parser
+        if any(filename.lower().endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".webp", ".gif")):
+            is_image_asset = True
+            try:
+                _, image_mime_type, img_meta = validate_and_decode_image(file_bytes)
+                image_preview_url = img_meta.get("preview_data_url", "")
+            except Exception as e:
+                logger.warning(f"Image decode validation: {e}")
+                image_preview_url = ""
+
+            # OCR for extracting visible text
             extracted_text = await asyncio.to_thread(extract_from_image, file_bytes)
+            if not extracted_text or not extracted_text.strip() or extracted_text.startswith("[Visual Creative Asset"):
+                extracted_text = f"[Visual Poster Creative: {filename} uploaded for multimodal brand compliance analysis.]"
         else:
             extracted_text = await asyncio.to_thread(extract_text_from_upload, file_bytes, filename)
 
@@ -160,10 +181,13 @@ async def create_content_review(
         extracted_text = raw_content
 
     if not extracted_text or not extracted_text.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to extract readable text from the provided submission."
-        )
+        if is_image_asset:
+            extracted_text = "[Visual Poster Creative: Evaluated for visual brand consistency, logo placement, color harmony, and WCAG contrast.]"
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to extract readable text from the provided submission."
+            )
 
     # 3. Load active brand rules
     all_brand_rules = (
@@ -173,7 +197,17 @@ async def create_content_review(
     )
     valid_rule_ids = {str(r.id): r.id for r in all_brand_rules}
 
-    # 4. Pre-LLM Deterministic Checks
+    # 4. Multimodal Vision Analysis (if creative asset)
+    if is_image_asset:
+        visual_findings, visual_status, visual_message = await analyze_poster_visual_design(
+            file_bytes=file_bytes,
+            mime_type=image_mime_type,
+            brand_rules=all_brand_rules,
+            brand_name=brand.name,
+            extracted_ocr_text=extracted_text if not extracted_text.startswith("[Visual Poster Creative") else ""
+        )
+
+    # 5. Pre-LLM Deterministic Checks
     deterministic_findings = run_all_deterministic_checks(
         content=extracted_text,
         raw_html=raw_html,
@@ -181,7 +215,7 @@ async def create_content_review(
         prohibited_rules=all_brand_rules,
     )
 
-    # 5. Semantic Search: FAISS Top-K Retrieval
+    # 6. Semantic Search: FAISS Top-K Retrieval
     relevant_rules = retrieve_relevant_rules(
         brand_id=target_brand_id,
         content_chunk=extracted_text,
@@ -201,26 +235,30 @@ async def create_content_review(
             for r in all_brand_rules[:4]
         ]
 
-    # 6. Dual AI Compliance Analysis (run in threadpool to prevent blocking the event loop)
-    raw_ai_findings = await asyncio.to_thread(
-        analyze_content_against_rules,
-        content=extracted_text,
-        relevant_rules=relevant_rules
-    )
+    # 7. Dual AI Compliance Analysis (for text copy)
+    grounded_ai_findings: List[Dict[str, Any]] = []
+    if extracted_text and not extracted_text.startswith("[Visual Poster Creative"):
+        raw_ai_findings = await asyncio.to_thread(
+            analyze_content_against_rules,
+            content=extracted_text,
+            relevant_rules=relevant_rules
+        )
+        grounded_ai_findings = validate_findings(
+            findings=raw_ai_findings,
+            candidate_rules=all_brand_rules,
+            db_session=db,
+            discard_ungrounded=False,
+            tag_unverified_gap=True
+        )
 
-    # 7. Grounding Validator (Verify rule_id and cited quotes against DB)
-    grounded_ai_findings = validate_findings(
-        findings=raw_ai_findings,
-        candidate_rules=all_brand_rules,
-        db_session=db,
-        discard_ungrounded=False,
-        tag_unverified_gap=True
-    )
-
-    # 8. Combine Findings
+    # 8. Combine Findings (Visual + Deterministic + Grounded AI Text)
     all_findings_to_store: List[Dict[str, Any]] = []
-    all_findings_to_store.extend(deterministic_findings)
-    all_findings_to_store.extend(grounded_ai_findings)
+    seen_keys = set()
+    for f in list(visual_findings) + list(deterministic_findings) + list(grounded_ai_findings):
+        dedup_key = (f.get("rule_id"), (f.get("flagged_text") or f.get("visual_element") or "").strip().lower()[:50])
+        if dedup_key not in seen_keys:
+            seen_keys.add(dedup_key)
+            all_findings_to_store.append(f)
 
     # 9. Persist ContentSubmission
     submission = ContentSubmission(
@@ -229,7 +267,10 @@ async def create_content_review(
         content_type=content_type,
         raw_content=extracted_text,
         status=SubmissionStatus.findings_ready,
-        current_version=1
+        current_version=1,
+        image_preview_url=image_preview_url,
+        visual_analysis_status=visual_status if is_image_asset else None,
+        visual_analysis_message=visual_message if is_image_asset else None
     )
     db.add(submission)
     db.flush()
@@ -264,7 +305,10 @@ async def create_content_review(
             explanation=str(f.get("explanation", "")),
             cited_quote=f.get("cited_quote"),
             suggested_fix=f.get("suggested_fix"),
-            user_action=action
+            user_action=action,
+            is_visual=bool(f.get("is_visual", False)),
+            visual_element=f.get("visual_element"),
+            observed_evidence=f.get("observed_evidence")
         )
         finding_obj.fix_variations = f.get("fix_variations")
         finding_obj.strategic_tip = f.get("strategic_tip")
@@ -287,6 +331,12 @@ async def create_content_review(
             item_val["fix_variations"] = f_meta.get("fix_variations")
         if f_meta.get("strategic_tip"):
             item_val["strategic_tip"] = f_meta.get("strategic_tip")
+        if f_meta.get("is_visual"):
+            item_val["is_visual"] = True
+        if f_meta.get("visual_element"):
+            item_val["visual_element"] = f_meta.get("visual_element")
+        if f_meta.get("observed_evidence"):
+            item_val["observed_evidence"] = f_meta.get("observed_evidence")
         findings_out.append(item_val)
 
     return {
@@ -295,7 +345,12 @@ async def create_content_review(
         "findings": findings_out,
         "total_findings": len(saved_findings),
         "deterministic_count": len(deterministic_findings),
-        "ai_grounded_count": len(grounded_ai_findings)
+        "ai_grounded_count": len(grounded_ai_findings),
+        "visual_findings_count": len([f for f in all_findings_to_store if f.get("is_visual")]),
+        "image_preview_url": image_preview_url,
+        "visual_analysis_status": visual_status if is_image_asset else None,
+        "visual_analysis_message": visual_message if is_image_asset else None,
+        "is_image_asset": is_image_asset
     }
 
 
@@ -371,6 +426,9 @@ def get_review_details(
     enriched_findings: List[FindingResponse] = []
     for f in findings:
         fr = FindingResponse.model_validate(f)
+        fr.is_visual = getattr(f, "is_visual", False)
+        fr.visual_element = getattr(f, "visual_element", None)
+        fr.observed_evidence = getattr(f, "observed_evidence", None)
         if not fr.fix_variations or not fr.strategic_tip:
             _, variations, tip = generate_enterprise_fix_variations(
                 flagged_text=f.flagged_text or "",
@@ -388,7 +446,11 @@ def get_review_details(
         "findings": enriched_findings,
         "total_findings": len(enriched_findings),
         "brand_id": submission.brand_id,
-        "status": submission.status
+        "status": submission.status,
+        "image_preview_url": getattr(submission, "image_preview_url", None),
+        "visual_analysis_status": getattr(submission, "visual_analysis_status", None),
+        "visual_analysis_message": getattr(submission, "visual_analysis_message", None),
+        "extracted_text": submission.raw_content
     }
 
 

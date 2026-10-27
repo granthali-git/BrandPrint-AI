@@ -34,6 +34,12 @@ async def lifespan(app: FastAPI):
                     from sqlalchemy import text
                     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);"))
                     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS company VARCHAR(255);"))
+                    conn.execute(text("ALTER TABLE findings ADD COLUMN IF NOT EXISTS is_visual BOOLEAN DEFAULT FALSE;"))
+                    conn.execute(text("ALTER TABLE findings ADD COLUMN IF NOT EXISTS visual_element VARCHAR(255);"))
+                    conn.execute(text("ALTER TABLE findings ADD COLUMN IF NOT EXISTS observed_evidence TEXT;"))
+                    conn.execute(text("ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS image_preview_url TEXT;"))
+                    conn.execute(text("ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS visual_analysis_status VARCHAR(50);"))
+                    conn.execute(text("ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS visual_analysis_message TEXT;"))
                     conn.commit()
                 except Exception:
                     pass

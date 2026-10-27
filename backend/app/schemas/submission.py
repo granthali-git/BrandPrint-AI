@@ -28,4 +28,7 @@ class ContentSubmissionResponse(ContentSubmissionBase):
     creator_id: Union[int, str]
     status: SubmissionStatus
     current_version: int
+    image_preview_url: Optional[str] = None
+    visual_analysis_status: Optional[str] = None
+    visual_analysis_message: Optional[str] = None
     created_at: datetime

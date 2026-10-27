@@ -59,9 +59,15 @@ export const ReviewStudio: React.FC = () => {
   // Review & Findings State
   const [reviewData, setReviewData] = useState<ReviewResponse | null>(null);
   const [activeContent, setActiveContent] = useState<string>('');
+  const [leftPaneTab, setLeftPaneTab] = useState<'visual' | 'text'>('visual');
   const [selectedFindingId, setSelectedFindingId] = useState<string | number | null>(null);
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+
+  const anyImageExt = (name?: string) => {
+    if (!name) return false;
+    return /\.(png|jpe?g|webp|gif)$/i.test(name);
+  };
 
   // Governance Decision Modal State
   const [decisionModalOpen, setDecisionModalOpen] = useState(false);
@@ -1006,7 +1012,7 @@ export const ReviewStudio: React.FC = () => {
             <input
               id="studio-file-input"
               type="file"
-              accept=".pdf,.docx,.doc,.pptx,.ppt,.txt,.md"
+              accept=".png,.jpg,.jpeg,.webp,.pdf,.docx,.doc,.pptx,.ppt,.txt,.md"
               onChange={(e) => {
                 if (e.target.files && e.target.files[0]) {
                   setSelectedFile(e.target.files[0]);
@@ -1024,6 +1030,8 @@ export const ReviewStudio: React.FC = () => {
                       <BookOpen className="w-6 h-6 text-brand-ocean" />
                     ) : selectedFile.name.toLowerCase().endsWith('.docx') || selectedFile.name.toLowerCase().endsWith('.doc') ? (
                       <FileText className="w-6 h-6 text-brand-ocean" />
+                    ) : anyImageExt(selectedFile.name) ? (
+                      <Eye className="w-6 h-6 text-brand-amber" />
                     ) : (
                       <FileCheck className="w-6 h-6 text-emerald-600" />
                     )}
@@ -1050,6 +1058,8 @@ export const ReviewStudio: React.FC = () => {
                           ? 'Multi-Page Document Ready'
                           : selectedFile.name.toLowerCase().endsWith('.docx') || selectedFile.name.toLowerCase().endsWith('.doc')
                           ? 'Word Document Ready'
+                          : anyImageExt(selectedFile.name)
+                          ? 'Poster Asset Ready for Visual Inspection'
                           : 'Text Document Ready'}
                       </span>
                     </div>
@@ -1084,6 +1094,9 @@ export const ReviewStudio: React.FC = () => {
 
                 {/* Format Badges */}
                 <div className="flex items-center justify-center gap-2 pt-1 flex-wrap">
+                  <span className="px-2.5 py-0.5 rounded-md bg-white border border-brand-sand font-mono text-[10px] font-bold text-brand-amber shadow-card-soft">
+                    [POSTER / PNG / JPG]
+                  </span>
                   <span className="px-2.5 py-0.5 rounded-md bg-white border border-brand-sand font-mono text-[10px] font-bold text-brand-charcoal shadow-card-soft">
                     [PDF]
                   </span>
@@ -1169,34 +1182,156 @@ export const ReviewStudio: React.FC = () => {
 
       {/* 2. Evidence-First Results View (Split Layout) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Pane: Submitted Content with Interactive Highlights (6 Cols) */}
+        {/* Left Pane: Submitted Content with Interactive Highlights & Poster Visual Preview (6 Cols) */}
         <div className="lg:col-span-6 bg-white rounded-2xl p-6 border border-brand-sand shadow-card-soft space-y-4 sticky top-20">
-          <div className="flex items-center justify-between border-b border-brand-sand pb-3">
-            <div className="flex items-center gap-2">
-              <Eye className="w-4 h-4 text-brand-ocean" />
-              <h2 className="text-sm font-bold text-brand-charcoal">Submitted Content</h2>
-            </div>
-            <span className="text-[11px] font-mono text-brand-charcoalMuted font-semibold">
-              Interactive Keyword Grounding
-            </span>
-          </div>
+          {(() => {
+            const previewImgUrl =
+              reviewData?.image_preview_url ||
+              reviewData?.submission?.image_preview_url ||
+              (selectedFile && anyImageExt(selectedFile.name) ? URL.createObjectURL(selectedFile) : null);
+            const visualStatus = reviewData?.visual_analysis_status || reviewData?.submission?.visual_analysis_status;
+            const visualMsg = reviewData?.visual_analysis_message || reviewData?.submission?.visual_analysis_message;
+            const visualFindingsList = (reviewData?.findings || []).filter(
+              (f) => f.is_visual || f.category === 'visual' || f.issue_type === 'visual_guideline_breach'
+            );
 
-          <div
-            ref={contentPaneRef}
-            className="p-4 rounded-xl bg-brand-cream/50 border border-brand-sand min-h-[320px] max-h-[580px] overflow-y-auto leading-relaxed"
-          >
-            {renderHighlightedContent()}
-          </div>
+            return (
+              <>
+                <div className="flex items-center justify-between border-b border-brand-sand pb-3 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-brand-ocean" />
+                    <h2 className="text-sm font-bold text-brand-charcoal">
+                      {previewImgUrl ? 'Visual Creative & Content' : 'Submitted Content'}
+                    </h2>
+                  </div>
 
-          {/* Quick Guidance bar */}
-          <div className="flex items-center justify-between text-[11px] font-mono text-brand-charcoalMuted pt-1">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Critical
-              <span className="w-2 h-2 rounded-full bg-brand-amber inline-block ml-1.5" /> High
-              <span className="w-2 h-2 rounded-full bg-yellow-500 inline-block ml-1.5" /> Medium
-            </span>
-            <span>Click any highlighted phrase to jump to its policy citation</span>
-          </div>
+                  {previewImgUrl && (
+                    <div className="flex items-center gap-1 p-1 bg-brand-cream/80 rounded-xl border border-brand-sand shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setLeftPaneTab('visual')}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          leftPaneTab === 'visual'
+                            ? 'bg-brand-ocean text-white shadow-xs'
+                            : 'text-brand-charcoalMuted hover:text-brand-charcoal'
+                        }`}
+                      >
+                        🖼️ Poster Visual Preview
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLeftPaneTab('text')}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          leftPaneTab === 'text'
+                            ? 'bg-brand-ocean text-white shadow-xs'
+                            : 'text-brand-charcoalMuted hover:text-brand-charcoal'
+                        }`}
+                      >
+                        📝 Extracted Text & Copy
+                      </button>
+                    </div>
+                  )}
+
+                  {!previewImgUrl && (
+                    <span className="text-[11px] font-mono text-brand-charcoalMuted font-semibold">
+                      Interactive Keyword Grounding
+                    </span>
+                  )}
+                </div>
+
+                {previewImgUrl && leftPaneTab === 'visual' ? (
+                  <div className="space-y-3.5">
+                    {/* Visual Analysis Status Banner */}
+                    {visualStatus === 'complete' ? (
+                      <div className="p-3 rounded-xl bg-emerald-50/90 border border-emerald-200 text-xs text-emerald-950 flex items-start gap-2.5 shadow-2xs">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <div>
+                          <div className="font-bold flex items-center gap-2">
+                            Multimodal Visual Analysis: Complete
+                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-200 text-emerald-950 font-bold uppercase tracking-wider">
+                              Verified
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-emerald-800 mt-0.5 leading-relaxed">
+                            {visualMsg ||
+                              `Evaluated logo integrity, color harmony, typography hierarchy, and WCAG contrast against ${currentBrand.name} guidelines.`}
+                          </p>
+                        </div>
+                      </div>
+                    ) : visualStatus === 'incomplete' ? (
+                      <div className="p-3 rounded-xl bg-amber-50/90 border border-amber-200 text-xs text-amber-950 flex items-start gap-2.5 shadow-2xs">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <div className="font-bold flex items-center gap-2">
+                            Multimodal Visual Analysis: Incomplete
+                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-200 text-amber-950 font-bold uppercase tracking-wider">
+                              Partial Heuristics
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                            {visualMsg ||
+                              'Multimodal AI model was unavailable or rate-limited. Deterministic visual contrast & claim heuristics applied.'}
+                          </p>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {/* Poster Image Container */}
+                    <div className="relative rounded-xl border border-brand-sand bg-brand-cream/30 p-2 overflow-hidden flex items-center justify-center min-h-[340px] max-h-[520px]">
+                      <img
+                        src={previewImgUrl}
+                        alt="Uploaded Poster Creative"
+                        className="max-h-[500px] w-auto max-w-full rounded-lg object-contain shadow-md transition-transform duration-200 hover:scale-[1.01]"
+                      />
+                    </div>
+
+                    {/* Visual Elements Pill Bar */}
+                    <div className="flex items-center justify-between text-[11px] font-mono text-brand-charcoalMuted pt-1 flex-wrap gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-brand-charcoal">Visual Findings:</span>
+                        {visualFindingsList.length > 0 ? (
+                          visualFindingsList.map((vf) => (
+                            <button
+                              key={vf.id}
+                              type="button"
+                              onClick={() => handleSelectFinding(vf.id)}
+                              className="px-2 py-0.5 rounded bg-purple-50 text-purple-900 border border-purple-200 text-[10px] font-bold hover:bg-purple-100 transition-colors cursor-pointer"
+                            >
+                              📍 {vf.visual_element || vf.issue_type}
+                            </button>
+                          ))
+                        ) : (
+                          <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                            <Check className="w-3.5 h-3.5" /> No visual defects detected
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] italic">Multimodal Vision Grounding</span>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      ref={contentPaneRef}
+                      className="p-4 rounded-xl bg-brand-cream/50 border border-brand-sand min-h-[320px] max-h-[580px] overflow-y-auto leading-relaxed"
+                    >
+                      {renderHighlightedContent()}
+                    </div>
+
+                    {/* Quick Guidance bar */}
+                    <div className="flex items-center justify-between text-[11px] font-mono text-brand-charcoalMuted pt-1">
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Critical
+                        <span className="w-2 h-2 rounded-full bg-brand-amber inline-block ml-1.5" /> High
+                        <span className="w-2 h-2 rounded-full bg-yellow-500 inline-block ml-1.5" /> Medium
+                      </span>
+                      <span>Click any highlighted phrase to jump to its policy citation</span>
+                    </div>
+                  </>
+                )}
+              </>
+            );
+          })()}
         </div>
 
         {/* Right Pane: Findings & Evidence List (6 Cols) */}
