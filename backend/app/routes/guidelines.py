@@ -383,6 +383,16 @@ async def ingest_guideline_url(
         source_name=payload.url
     )
 
+    if not extracted_rules:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Successfully retrieved content from '{payload.url}' ({len(scraped_text)} characters), "
+                "but could not identify discrete brand guideline rules or enforceable policies. "
+                "Action: Ensure the target page contains explicit brand guidelines, or add rules manually via 'Manual Entry' or 'Raw Copy'."
+            )
+        )
+
     action_label = "saved and indexed into FAISS" if commit_to_db else "extracted for review"
     return {
         "brand_id": target_brand_id,

@@ -466,3 +466,4 @@ async def analyze_poster_visual_design(
     # 7. Fallback if all multimodal calls failed
     status_msg = "Multimodal AI visual service was rate-limited or temporarily unavailable. Deterministic visual audit heuristics applied."
     return deterministic_findings, "incomplete", status_msg
+

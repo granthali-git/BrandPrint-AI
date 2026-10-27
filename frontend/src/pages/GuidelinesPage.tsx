@@ -329,11 +329,37 @@ export const GuidelinesPage: React.FC = () => {
 
       {/* Error Banner */}
       {errorMessage && (
-        <div className="rounded-2xl bg-rose-50 border border-rose-200 p-4 text-xs text-rose-800 flex items-start gap-3 shadow-sm animate-in fade-in duration-200">
+        <div className="rounded-2xl bg-rose-50 border border-rose-200 p-4 text-xs text-rose-800 flex items-start gap-3 shadow-sm animate-in fade-in duration-200" id="guidelines-ingestion-error-banner">
           <X className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
           <div className="flex-1">
             <span className="font-bold block text-sm">Ingestion Error</span>
             <p className="mt-0.5 leading-relaxed">{errorMessage}</p>
+            {errorMessage.toLowerCase().includes('copy') && (
+              <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsIngestionOpen(true);
+                    setIngestionTab('manual');
+                    setErrorMessage(null);
+                  }}
+                  className="px-3 py-1 rounded-lg bg-white border border-rose-300 text-rose-900 font-bold hover:bg-rose-100 transition-colors cursor-pointer shadow-2xs"
+                >
+                  ✍️ Enter Rules Manually
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsIngestionOpen(true);
+                    setIngestionTab('upload');
+                    setErrorMessage(null);
+                  }}
+                  className="px-3 py-1 rounded-lg bg-white border border-rose-300 text-rose-900 font-bold hover:bg-rose-100 transition-colors cursor-pointer shadow-2xs"
+                >
+                  📄 Upload as Document
+                </button>
+              </div>
+            )}
           </div>
           <button
             onClick={() => setErrorMessage(null)}
@@ -636,14 +662,14 @@ export const GuidelinesPage: React.FC = () => {
               </div>
 
               {/* Presets */}
-              <div className="flex items-center gap-2 text-[11px] font-mono text-brand-charcoalMuted">
-                <span className="font-bold">Quick Presets:</span>
+              <div className="flex items-center gap-2 text-[11px] font-mono text-brand-charcoalMuted flex-wrap">
+                <span className="font-bold">Verified Presets:</span>
                 <button
                   type="button"
-                  onClick={() => setUrlInput('https://www.ftc.gov/business-guidance/advertising-marketing')}
-                  className="text-brand-ocean hover:underline"
+                  onClick={() => setUrlInput('https://www.site-example.com/')}
+                  className="text-brand-ocean hover:underline font-semibold"
                 >
-                  FTC Truth-in-Advertising Guide
+                  Site Example (Scraper QA)
                 </button>
                 <span>•</span>
                 <button
@@ -652,6 +678,14 @@ export const GuidelinesPage: React.FC = () => {
                   className="text-brand-ocean hover:underline"
                 >
                   Brand Standards Wiki
+                </button>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={() => setUrlInput('https://www.ftc.gov/business-guidance/advertising-marketing')}
+                  className="text-brand-ocean hover:underline"
+                >
+                  FTC Truth-in-Advertising
                 </button>
               </div>
 

@@ -191,3 +191,4 @@ async def test_case_f_visual_poster_no_readable_text():
     assert isinstance(findings, list)
     assert status in ("complete", "incomplete")
     assert isinstance(message, str)
+

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { reviewsApi } from '../../api/reviews';
+import { apiClient, BASE_URL } from '../../api/client';
 
 export const NewReviewModal: React.FC = () => {
   const { isNewReviewOpen, closeNewReview, currentBrand } = useApp();
@@ -25,6 +26,7 @@ export const NewReviewModal: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [backendWarming, setBackendWarming] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successInfo, setSuccessInfo] = useState<string | null>(null);
   const [progressIndex, setProgressIndex] = useState(0);
@@ -35,6 +37,14 @@ export const NewReviewModal: React.FC = () => {
     "Cross-referencing deterministic policy rules...",
     "Validating semantic citations and fix variations...",
   ];
+
+  // Preemptive health ping on modal mount to wake sleeping Render instance early
+  useEffect(() => {
+    if (!isNewReviewOpen) return;
+    apiClient.get('/health', { timeout: 15000 }).catch(() => {
+      // Intentionally silent: first ping wakes up Render container if sleeping
+    });
+  }, [isNewReviewOpen]);
 
   // Rotate friendly progress indicators while pipeline processes
   useEffect(() => {
@@ -63,8 +73,7 @@ export const NewReviewModal: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const executeSubmission = async (retryCount = 0) => {
     setErrorMsg(null);
     setSuccessInfo(null);
 
@@ -112,6 +121,37 @@ export const NewReviewModal: React.FC = () => {
       }, 1000);
     } catch (err: any) {
       console.error('Review submission error:', err);
+      const errText = err?.message || '';
+      const isSleepWake =
+        errText.toLowerCase().includes('spinning up') ||
+        errText.toLowerCase().includes('network error') ||
+        err?.response?.status === 502 ||
+        err?.response?.status === 504 ||
+        err?.code === 'ECONNABORTED';
+
+      // If backend was sleeping and we haven't retried yet, trigger automatic wake-and-retry
+      if (isSleepWake && retryCount === 0) {
+        setBackendWarming(true);
+        let awake = false;
+        for (let i = 0; i < 12; i++) {
+          await new Promise((resolve) => setTimeout(resolve, 2500));
+          try {
+            const probe = await apiClient.get('/health', { timeout: 6000 });
+            if (probe.status === 200) {
+              awake = true;
+              break;
+            }
+          } catch {
+            // Still booting
+          }
+        }
+        setBackendWarming(false);
+        if (awake) {
+          return executeSubmission(1);
+        }
+      }
+
+      setBackendWarming(false);
       const rawBase = import.meta.env.VITE_API_BASE_URL || 'https://brandprint-ai-backend.onrender.com';
       let baseUrl = rawBase.replace(/\/+$/, '');
       if (typeof window !== 'undefined' && window.location.protocol === 'https:' && baseUrl.startsWith('http://') && !baseUrl.includes('localhost')) {
@@ -125,6 +165,11 @@ export const NewReviewModal: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    executeSubmission(0);
   };
 
   return (
@@ -300,8 +345,26 @@ export const NewReviewModal: React.FC = () => {
             </div>
           )}
 
+          {/* Cold start auto-wake indicator */}
+          {backendWarming && (
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-xs text-brand-charcoal flex items-center gap-3 animate-in fade-in duration-200">
+              <Loader2 className="w-5 h-5 text-brand-amber animate-spin shrink-0" />
+              <div className="flex-1">
+                <div className="font-semibold text-brand-charcoal flex items-center gap-2">
+                  <span>Waking up cloud backend (Render spin-up)</span>
+                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-200/70 text-amber-900">
+                    Auto-Retrying
+                  </span>
+                </div>
+                <p className="text-[11px] text-brand-charcoalMuted mt-0.5">
+                  The Render free instance is waking up from sleep (~20-25s). Your audit will dispatch automatically once the connection is ready.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Friendly Animated Progress Indicator */}
-          {isSubmitting && (
+          {isSubmitting && !backendWarming && (
             <div className="p-3.5 rounded-xl bg-brand-oceanLight/10 border border-brand-amber/40 text-xs text-brand-ocean flex items-center gap-3 animate-in fade-in duration-200">
               <Loader2 className="w-5 h-5 text-brand-amber animate-spin shrink-0" />
               <div className="flex-1">
@@ -320,9 +383,25 @@ export const NewReviewModal: React.FC = () => {
 
           {/* Feedback Messages */}
           {errorMsg && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700">
-              <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
-              <span>{errorMsg}</span>
+            <div className="flex flex-col gap-2.5 p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 animate-in fade-in duration-150">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-600 mt-0.5" />
+                <div className="flex-1">
+                  <span className="font-semibold text-red-900 block">Service Notice:</span>
+                  <span className="mt-0.5 block leading-relaxed">{errorMsg}</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-red-200/60">
+                <button
+                  type="button"
+                  onClick={() => executeSubmission(0)}
+                  disabled={isSubmitting || backendWarming}
+                  className="px-3.5 py-1.5 rounded-lg bg-brand-amber hover:bg-brand-amberHover text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Retry Audit Now
+                </button>
+              </div>
             </div>
           )}
 
