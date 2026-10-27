@@ -74,6 +74,25 @@ export const ReviewStudio: React.FC = () => {
   const [certModalOpen, setCertModalOpen] = useState(false);
   const [certificateData, setCertificateData] = useState<any>(null);
   const [loadingCert, setLoadingCert] = useState(false);
+  const [evalProgressIndex, setEvalProgressIndex] = useState(0);
+
+  const EVAL_PROGRESS_MESSAGES = [
+    "Analyzing image visual & text copy...",
+    "Grounding against brand guidelines with Gemini...",
+    "Cross-referencing deterministic policy rules...",
+    "Validating semantic citations and fix variations...",
+  ];
+
+  useEffect(() => {
+    if (!isEvaluating) {
+      setEvalProgressIndex(0);
+      return;
+    }
+    const timer = setInterval(() => {
+      setEvalProgressIndex((prev) => (prev + 1) % EVAL_PROGRESS_MESSAGES.length);
+    }, 2800);
+    return () => clearInterval(timer);
+  }, [isEvaluating]);
 
   // Refs for auto-scrolling
   const findingCardsRef = useRef<Record<string | number, HTMLDivElement | null>>({});
@@ -1118,21 +1137,30 @@ export const ReviewStudio: React.FC = () => {
             <span>Deterministic Filter + FAISS Semantic Guard + Gemini 1.5</span>
           </div>
 
+          {isEvaluating && (
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-brand-oceanLight/10 border border-brand-amber/30 text-xs text-brand-ocean animate-in fade-in duration-150">
+              <Loader2 className="w-3.5 h-3.5 text-brand-amber animate-spin shrink-0" />
+              <span className="font-mono text-[11px] text-brand-charcoal animate-pulse">
+                {EVAL_PROGRESS_MESSAGES[evalProgressIndex]}
+              </span>
+            </div>
+          )}
+
           <button
             onClick={handleRunReview}
             disabled={isEvaluating}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-amber hover:bg-brand-amberHover text-white text-xs font-bold shadow-sm transition-all duration-150 active:scale-95 disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-amber hover:bg-brand-amberHover text-white text-xs font-bold shadow-sm transition-all duration-150 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             id="btn-run-review"
           >
             {isEvaluating ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin text-white" />
-                <span className="animate-pulse">Evaluating Compliance Grounding...</span>
+                <span className="animate-pulse">{EVAL_PROGRESS_MESSAGES[evalProgressIndex]}</span>
               </>
             ) : (
               <>
                 <Sparkles className="w-4 h-4 text-white" />
-                <span>Run Compliance Review</span>
+                <span>Run Compliance Audit</span>
               </>
             )}
           </button>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   X,
@@ -27,6 +27,26 @@ export const NewReviewModal: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successInfo, setSuccessInfo] = useState<string | null>(null);
+  const [progressIndex, setProgressIndex] = useState(0);
+
+  const PROGRESS_MESSAGES = [
+    "Analyzing image visual & text copy...",
+    "Grounding against brand guidelines with Gemini...",
+    "Cross-referencing deterministic policy rules...",
+    "Validating semantic citations and fix variations...",
+  ];
+
+  // Rotate friendly progress indicators while pipeline processes
+  useEffect(() => {
+    if (!isSubmitting) {
+      setProgressIndex(0);
+      return;
+    }
+    const timer = setInterval(() => {
+      setProgressIndex((prev) => (prev + 1) % PROGRESS_MESSAGES.length);
+    }, 2800);
+    return () => clearInterval(timer);
+  }, [isSubmitting]);
 
   if (!isNewReviewOpen) return null;
 
@@ -280,6 +300,24 @@ export const NewReviewModal: React.FC = () => {
             </div>
           )}
 
+          {/* Friendly Animated Progress Indicator */}
+          {isSubmitting && (
+            <div className="p-3.5 rounded-xl bg-brand-oceanLight/10 border border-brand-amber/40 text-xs text-brand-ocean flex items-center gap-3 animate-in fade-in duration-200">
+              <Loader2 className="w-5 h-5 text-brand-amber animate-spin shrink-0" />
+              <div className="flex-1">
+                <div className="font-semibold text-brand-charcoal flex items-center gap-2">
+                  <span>Executing Compliance Audit</span>
+                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-brand-amber/20 text-brand-amberHover">
+                    Step {progressIndex + 1}/4
+                  </span>
+                </div>
+                <p className="text-[11px] text-brand-charcoalMuted mt-0.5 animate-pulse font-medium">
+                  {PROGRESS_MESSAGES[progressIndex]}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Feedback Messages */}
           {errorMsg && (
             <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700">
@@ -301,19 +339,20 @@ export const NewReviewModal: React.FC = () => {
               type="button"
               onClick={closeNewReview}
               disabled={isSubmitting}
-              className="px-4 py-2 rounded-xl text-xs font-medium text-brand-charcoalMuted hover:text-brand-charcoal hover:bg-brand-cream transition-colors"
+              className="px-4 py-2 rounded-xl text-xs font-medium text-brand-charcoalMuted hover:text-brand-charcoal hover:bg-brand-cream transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-amber hover:bg-brand-amberHover disabled:opacity-50 text-white text-xs font-bold shadow-sm transition-all duration-150 active:scale-95"
+              id="btn-run-compliance-audit"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-amber hover:bg-brand-amberHover disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm transition-all duration-150 active:scale-95 cursor-pointer"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Executing Pipeline...</span>
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span className="animate-pulse">{PROGRESS_MESSAGES[progressIndex]}</span>
                 </>
               ) : (
                 <>

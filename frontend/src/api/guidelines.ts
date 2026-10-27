@@ -54,6 +54,7 @@ export const guidelinesApi = {
     }
     const response = await apiClient.post<any>('/api/guidelines/upload-document', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 180000, // 3 minutes for heavy document parsing
     });
     return response.data;
   },

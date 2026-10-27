@@ -87,6 +87,22 @@ def test_extract_from_image_fallback():
     assert isinstance(result, str)
 
 
+def test_image_resizing_and_compression():
+    from app.services.extractors import resize_image_if_needed, compress_image_bytes
+    # Large test image (2400 x 1600)
+    img = Image.new("RGB", (2400, 1600), color="blue")
+    resized = resize_image_if_needed(img, 1920, 1080)
+    assert resized.width <= 1920
+    assert resized.height <= 1080
+
+    # Test compression
+    raw_io = io.BytesIO()
+    img.save(raw_io, format="PNG")
+    compressed = compress_image_bytes(raw_io.getvalue(), 1920, 1080)
+    assert len(compressed) > 0
+    assert len(compressed) <= len(raw_io.getvalue())
+
+
 def test_ssrf_protection():
     # Private IP addresses must be rejected
     with pytest.raises(ValueError, match="blocked"):

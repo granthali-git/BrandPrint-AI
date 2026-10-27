@@ -8,6 +8,7 @@ Pipeline:
 5. Grounding Validator (Strict rule_id and cited_quote verification)
 6. Persistence to Supabase (ContentSubmission and Finding records)
 """
+import asyncio
 import logging
 from typing import Any, Dict, List, Optional, Union
 
@@ -126,11 +127,11 @@ async def create_content_review(
         file_bytes = await file.read()
         filename = file.filename or "upload"
 
-        # Image OCR vs Document Parser
+        # Image OCR vs Document Parser (run in threadpool to prevent blocking the event loop)
         if any(filename.lower().endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".webp")):
-            extracted_text = extract_from_image(file_bytes)
+            extracted_text = await asyncio.to_thread(extract_from_image, file_bytes)
         else:
-            extracted_text = extract_text_from_upload(file_bytes, filename)
+            extracted_text = await asyncio.to_thread(extract_text_from_upload, file_bytes, filename)
 
     elif content_type == ContentType.url or url is not None:
         if not url:
@@ -139,7 +140,7 @@ async def create_content_review(
                 detail="URL string required when content_type is 'url'."
             )
         try:
-            url_data = extract_from_url(url)
+            url_data = await asyncio.to_thread(extract_from_url, url)
             extracted_text = url_data.get("text", "")
             raw_html = url_data.get("raw_html")
             extracted_images = url_data.get("images")
@@ -200,8 +201,9 @@ async def create_content_review(
             for r in all_brand_rules[:4]
         ]
 
-    # 6. Dual AI Compliance Analysis (Gemini API with Ollama Fallback)
-    raw_ai_findings = analyze_content_against_rules(
+    # 6. Dual AI Compliance Analysis (run in threadpool to prevent blocking the event loop)
+    raw_ai_findings = await asyncio.to_thread(
+        analyze_content_against_rules,
         content=extracted_text,
         relevant_rules=relevant_rules
     )

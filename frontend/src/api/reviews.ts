@@ -27,6 +27,7 @@ export const reviewsApi = {
     if (payload instanceof FormData) {
       const response = await apiClient.post<ReviewResponse>('/api/reviews', payload, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 180000, // 3 minutes for complex multi-modal files
       });
       return response.data;
     }
@@ -48,12 +49,15 @@ export const reviewsApi = {
 
       const response = await apiClient.post<ReviewResponse>('/api/reviews', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 180000, // 3 minutes for complex documents/images
       });
       return response.data;
     }
 
     // Submit as JSON for text/URL
-    const response = await apiClient.post<ReviewResponse>('/api/reviews', payload);
+    const response = await apiClient.post<ReviewResponse>('/api/reviews', payload, {
+      timeout: 120000, // 2 minutes for AI pipeline execution
+    });
     return response.data;
   },
 
