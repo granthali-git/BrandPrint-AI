@@ -30,3 +30,4 @@ EXPOSE 8000
 
 # Start application binding to 0.0.0.0 and PORT dynamically
 CMD ["sh", "-c", "uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port ${PORT:-8000}"]
+
