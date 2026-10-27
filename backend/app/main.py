@@ -29,6 +29,14 @@ async def lifespan(app: FastAPI):
     if not os.environ.get("TESTING") and not os.environ.get("PYTEST_CURRENT_TEST"):
         try:
             Base.metadata.create_all(bind=engine)
+            with engine.connect() as conn:
+                try:
+                    from sqlalchemy import text
+                    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);"))
+                    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS company VARCHAR(255);"))
+                    conn.commit()
+                except Exception:
+                    pass
             logger.info("Database schema verified/initialized successfully.")
         except Exception as e:
             logger.warning(

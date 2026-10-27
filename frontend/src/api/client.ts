@@ -61,7 +61,7 @@ apiClient.interceptors.response.use(
       parsedDetail ||
       error?.response?.data?.message ||
       (error?.message === 'Network Error'
-        ? `Backend unreachable at ${BASE_URL}. Please verify backend service is active.`
+        ? `Backend unreachable at ${BASE_URL}. The cloud service may be spinning up from sleep (Render free tier takes ~20s to wake up). Please wait a moment and retry, or ensure your local backend is running.`
         : error?.message || 'An unexpected error occurred');
 
     const err = new Error(message);
