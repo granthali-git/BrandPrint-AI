@@ -125,7 +125,11 @@ export const NewReviewModal: React.FC = () => {
       const isSleepWake =
         errText.toLowerCase().includes('spinning up') ||
         errText.toLowerCase().includes('network error') ||
+        errText.toLowerCase().includes('unreachable') ||
+        errText.toLowerCase().includes('unable to connect') ||
+        errText.toLowerCase().includes('failed to fetch') ||
         err?.response?.status === 502 ||
+        err?.response?.status === 503 ||
         err?.response?.status === 504 ||
         err?.code === 'ECONNABORTED';
 
@@ -133,7 +137,8 @@ export const NewReviewModal: React.FC = () => {
       if (isSleepWake && retryCount === 0) {
         setBackendWarming(true);
         let awake = false;
-        for (let i = 0; i < 12; i++) {
+        // Probe health up to 18 times (~45s) while Render container spins up from cold sleep
+        for (let i = 0; i < 18; i++) {
           await new Promise((resolve) => setTimeout(resolve, 2500));
           try {
             const probe = await apiClient.get('/health', { timeout: 6000 });

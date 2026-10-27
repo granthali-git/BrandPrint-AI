@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { apiClient } from './api/client';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppProvider } from './context/AppContext';
 import { AppLayout } from './components/layout/AppLayout';
@@ -61,6 +62,13 @@ const PublicAuthRoute: React.FC = () => {
 };
 
 export const App: React.FC = () => {
+  // Preemptively wake Render backend immediately on app launch so it's warm when user submits audits
+  useEffect(() => {
+    apiClient.get('/health', { timeout: 15000 }).catch(() => {
+      // Intentionally silent: first ping wakes up Render container if sleeping
+    });
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
