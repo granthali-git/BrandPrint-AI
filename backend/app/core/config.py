@@ -3,8 +3,11 @@ import os
 from typing import List, Union
 from dotenv import load_dotenv
 
-# Pre-load .env file if it exists
+# Pre-load .env file if it exists (check current working dir and backend folder)
 load_dotenv()
+backend_env = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+if os.path.exists(backend_env):
+    load_dotenv(backend_env)
 
 try:
     from pydantic_settings import BaseSettings, SettingsConfigDict

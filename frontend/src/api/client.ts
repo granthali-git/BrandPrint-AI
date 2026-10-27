@@ -1,6 +1,9 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-let rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://brandprint-ai-backend.onrender.com';
+let rawBaseUrl =
+  (typeof window !== 'undefined' ? localStorage.getItem('brandprint_api_base_url') : null) ||
+  import.meta.env.VITE_API_BASE_URL ||
+  'https://brandprint-ai-backend.onrender.com';
 export const API_BASE_URL = rawBaseUrl.replace(/\/+$/, '');
 
 let resolvedBaseUrl = API_BASE_URL;

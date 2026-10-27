@@ -228,11 +228,11 @@ Output:
 If there are no guideline violations or document inconsistencies in context, output strictly an empty JSON array: []"""
 
 GEMINI_MODEL_CANDIDATES = [
-    "gemini-2.5-flash",
-    "gemini-1.5-flash",
+    "gemini-flash-lite-latest",
+    "gemini-3.1-flash-lite",
     "gemini-flash-latest",
     "gemini-3.5-flash-lite",
-    "gemini-3.5-flash",
+    "gemini-3.8-flash",
 ]
 
 
@@ -927,7 +927,7 @@ def call_gemini_api(
     for model_name in GEMINI_MODEL_CANDIDATES[:3]:
         endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
         try:
-            with httpx.Client(timeout=3.0) as client:
+            with httpx.Client(timeout=15.0) as client:
                 # 1. Primary: Pass API key via header
                 response = client.post(endpoint, headers=headers, json=payload)
                 
@@ -1137,6 +1137,7 @@ def analyze_content_against_rules(
     ollama_url = ollama_base_url or os.getenv("OLLAMA_BASE_URL") or settings.OLLAMA_BASE_URL
 
     findings: List[Dict[str, Any]] = []
+    ai_evaluated = False
 
     # 1. Primary: Google Gemini API
     if api_key and api_key.strip() and api_key != "your_gemini_api_key_here":
@@ -1147,6 +1148,7 @@ def analyze_content_against_rules(
             except TypeError:
                 findings = call_gemini_api(prompt, api_key.strip())
             logger.info(f"Gemini API returned {len(findings)} findings.")
+            ai_evaluated = True
         except Exception as e:
             logger.warning(
                 f"Gemini API call failed, timed out, or quota exceeded ({e}). "
@@ -1154,7 +1156,7 @@ def analyze_content_against_rules(
             )
 
     # 2. Fallback 1: Local Ollama
-    if not findings and ollama_url and ollama_url.strip():
+    if not ai_evaluated and ollama_url and ollama_url.strip():
         for fallback_model in ("llama3.2", "llama3", "mistral"):
             try:
                 logger.info(f"Calling fallback AI evaluation via Ollama ({fallback_model}) at {ollama_url}...")
@@ -1163,8 +1165,8 @@ def analyze_content_against_rules(
                 except TypeError:
                     findings = call_ollama_fallback(prompt, ollama_url.strip(), model_name=fallback_model)
                 logger.info(f"Ollama ({fallback_model}) returned {len(findings)} findings.")
-                if findings:
-                    break
+                ai_evaluated = True
+                break
             except (httpx.ConnectError, httpx.ConnectTimeout):
                 logger.debug(f"Ollama server at {ollama_url} unreachable. Skipping remaining models.")
                 break
@@ -1172,7 +1174,7 @@ def analyze_content_against_rules(
                 logger.debug(f"Ollama attempt with '{fallback_model}' failed ({e}).")
 
     # 3. Fallback 2: Deterministic keyword & rule-based ingestion
-    if not findings:
+    if not ai_evaluated and not findings:
         logger.info("Engaging deterministic rule-based fallback ingestion...")
         findings = run_deterministic_keyword_fallback(content=content, relevant_rules=relevant_rules)
         if findings:

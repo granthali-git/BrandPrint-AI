@@ -1,5 +1,8 @@
 """FAISS in-memory vector store service for semantic brand rule retrieval."""
+import hashlib
 import logging
+import os
+import re
 from typing import Any, Dict, List, Optional, Union
 import numpy as np
 from sqlalchemy.orm import Session
@@ -14,6 +17,22 @@ _embedding_model = None
 _brand_indices: Dict[str, Dict[str, Any]] = {}
 
 
+def _compute_lightweight_embeddings(texts: List[str], dimension: int = 384) -> np.ndarray:
+    """Fast, deterministic hashing vectorizer that runs without PyTorch or HuggingFace,
+    preventing out-of-memory container crashes on memory-constrained platforms like Render (512MB).
+    """
+    vectors = np.zeros((len(texts), dimension), dtype=np.float32)
+    for i, text in enumerate(texts):
+        tokens = re.findall(r'\b\w{3,}\b', text.lower())
+        for token in tokens:
+            h = int(hashlib.md5(token.encode('utf-8')).hexdigest(), 16) % dimension
+            vectors[i, h] += 1.0
+        norm = np.linalg.norm(vectors[i])
+        if norm > 0:
+            vectors[i] /= norm
+    return vectors
+
+
 class RuleDict(dict):
     """Dictionary that supports attribute-style access for seamless model/dict compatibility."""
     def __getattr__(self, name: str) -> Any:
@@ -26,8 +45,12 @@ class RuleDict(dict):
 
 
 def get_embedding_model():
-    """Lazy load the sentence-transformers model singleton."""
+    """Lazy load the sentence-transformers model singleton with low-memory safeguards."""
     global _embedding_model
+    # Render free tier has strict 512MB RAM; bypass torch/transformers on Render to prevent OOM termination
+    if os.getenv("RENDER") or os.getenv("LOW_MEMORY_MODE", "").lower() in ("true", "1"):
+        return None
+
     if _embedding_model is None:
         try:
             from sentence_transformers import SentenceTransformer
@@ -92,10 +115,8 @@ def index_brand_rules(brand_id: Union[int, str], rules: List[Any]) -> int:
         embeddings = model.encode(rule_texts, normalize_embeddings=True, show_progress_bar=False)
         embeddings = np.array(embeddings, dtype=np.float32)
     else:
-        # Fallback pseudo-embeddings if model unavailable
-        embeddings = np.random.randn(len(rules), 384).astype(np.float32)
-        norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
-        embeddings = embeddings / norms
+        # Lightweight zero-RAM hashing embeddings
+        embeddings = _compute_lightweight_embeddings(rule_texts, dimension=384)
 
     dimension = embeddings.shape[1]
     # Use IndexFlatIP for cosine similarity on unit-normalized vectors
@@ -155,9 +176,8 @@ def retrieve_relevant_rules(
         query_vec = model.encode([content_chunk], normalize_embeddings=True, show_progress_bar=False)
         query_vec = np.array(query_vec, dtype=np.float32)
     else:
-        # Fallback query vector
-        query_vec = np.random.randn(1, brand_data["dimension"]).astype(np.float32)
-        query_vec = query_vec / np.linalg.norm(query_vec)
+        # Lightweight zero-RAM hashing embeddings
+        query_vec = _compute_lightweight_embeddings([content_chunk], dimension=brand_data["dimension"])
 
     distances, indices = index.search(query_vec, candidate_k)
     matched_indices = indices[0]
