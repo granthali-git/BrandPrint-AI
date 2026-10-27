@@ -10,6 +10,7 @@ Pipeline:
 """
 import asyncio
 import logging
+import time
 from typing import Any, Dict, List, Optional, Union
 
 from fastapi import (
@@ -47,7 +48,8 @@ from app.services.extractors import (
     extract_from_docx,
     extract_from_image,
     extract_from_pdf,
-    extract_from_url
+    extract_from_url,
+    render_pdf_page_as_image
 )
 from app.services.grounding_validator import validate_findings
 from app.services.vector_store import retrieve_relevant_rules
@@ -117,6 +119,9 @@ async def create_content_review(
             detail=f"Brand with ID '{brand_id}' not found."
         )
 
+    stage_timings: Dict[str, float] = {}
+    t_start = time.time()
+
     extracted_text = ""
     raw_html: Optional[str] = None
     extracted_images: Optional[List[Dict[str, Any]]] = None
@@ -128,6 +133,7 @@ async def create_content_review(
     visual_message: str = ""
 
     # 2. Content Ingestion & Extraction
+    t_extract_start = time.time()
     if content_type == ContentType.file or file is not None:
         if not file:
             raise HTTPException(
@@ -151,6 +157,21 @@ async def create_content_review(
             extracted_text = await asyncio.to_thread(extract_from_image, file_bytes)
             if not extracted_text or not extracted_text.strip() or extracted_text.startswith("[Visual Creative Asset"):
                 extracted_text = f"[Visual Poster Creative: {filename} uploaded for multimodal brand compliance analysis.]"
+        elif filename.lower().endswith(".pdf"):
+            # Direct PDF file upload: extract text and render first page for visual analysis
+            visual_rendered_bytes = None
+            try:
+                rendered_b, preview_url = await asyncio.to_thread(render_pdf_page_as_image, file_bytes, 0)
+                if rendered_b:
+                    is_image_asset = True
+                    visual_rendered_bytes = rendered_b
+                    image_mime_type = "image/jpeg"
+                    image_preview_url = preview_url or ""
+            except Exception as render_ex:
+                logger.warning(f"PDF page rendering skipped: {render_ex}")
+            extracted_text = await asyncio.to_thread(extract_text_from_upload, file_bytes, filename)
+            if is_image_asset and visual_rendered_bytes:
+                file_bytes = visual_rendered_bytes
         else:
             extracted_text = await asyncio.to_thread(extract_text_from_upload, file_bytes, filename)
 
@@ -165,10 +186,27 @@ async def create_content_review(
             extracted_text = url_data.get("text", "")
             raw_html = url_data.get("raw_html")
             extracted_images = url_data.get("images")
+
+            # If the URL yielded a visual asset (rendered PDF poster page or image), activate the visual pipeline!
+            if url_data.get("is_visual_asset") and url_data.get("visual_image_bytes"):
+                is_image_asset = True
+                file_bytes = url_data["visual_image_bytes"]
+                image_mime_type = url_data.get("mime_type", "image/jpeg")
+                image_preview_url = url_data.get("image_preview_url") or ""
         except ValueError as e:
+            err_msg = str(e)
+            status_code = status.HTTP_400_BAD_REQUEST
+            if "HTTP 403" in err_msg or "403 Forbidden" in err_msg:
+                status_code = status.HTTP_403_FORBIDDEN
+            elif "404" in err_msg:
+                status_code = status.HTTP_404_NOT_FOUND
+            elif "exceeds" in err_msg or "size limit" in err_msg:
+                status_code = status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+            elif "timeout" in err_msg.lower() or "took longer than" in err_msg.lower():
+                status_code = status.HTTP_504_GATEWAY_TIMEOUT
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(e)
+                status_code=status_code,
+                detail=err_msg
             ) from e
 
     else:
@@ -179,6 +217,8 @@ async def create_content_review(
                 detail="raw_content string is required for text review."
             )
         extracted_text = raw_content
+
+    stage_timings["extraction_ms"] = round((time.time() - t_extract_start) * 1000, 1)
 
     if not extracted_text or not extracted_text.strip():
         if is_image_asset:
@@ -198,27 +238,33 @@ async def create_content_review(
     valid_rule_ids = {str(r.id): r.id for r in all_brand_rules}
 
     # 4. Multimodal Vision Analysis (if creative asset)
+    t_visual_start = time.time()
     if is_image_asset:
         visual_findings, visual_status, visual_message = await analyze_poster_visual_design(
             file_bytes=file_bytes,
             mime_type=image_mime_type,
             brand_rules=all_brand_rules,
             brand_name=brand.name,
-            extracted_ocr_text=extracted_text if not extracted_text.startswith("[Visual Poster Creative") else ""
+            extracted_ocr_text=extracted_text if not extracted_text.startswith("[Visual Poster Creative") and not extracted_text.startswith("[Visual PDF Asset") else ""
         )
+    stage_timings["visual_analysis_ms"] = round((time.time() - t_visual_start) * 1000, 1)
 
     # 5. Pre-LLM Deterministic Checks
+    t_det_start = time.time()
     deterministic_findings = run_all_deterministic_checks(
         content=extracted_text,
         raw_html=raw_html,
         images=extracted_images,
         prohibited_rules=all_brand_rules,
     )
+    stage_timings["deterministic_checks_ms"] = round((time.time() - t_det_start) * 1000, 1)
 
     # 6. Semantic Search: FAISS Top-K Retrieval
+    t_faiss_start = time.time()
+    faiss_query_chunk = extracted_text[:4000] if len(extracted_text) > 4000 else extracted_text
     relevant_rules = retrieve_relevant_rules(
         brand_id=target_brand_id,
-        content_chunk=extracted_text,
+        content_chunk=faiss_query_chunk,
         top_k=4,
         db=db
     )
@@ -234,13 +280,17 @@ async def create_content_review(
             }
             for r in all_brand_rules[:4]
         ]
+    stage_timings["faiss_retrieval_ms"] = round((time.time() - t_faiss_start) * 1000, 1)
 
     # 7. Dual AI Compliance Analysis (for text copy)
+    t_ai_start = time.time()
     grounded_ai_findings: List[Dict[str, Any]] = []
-    if extracted_text and not extracted_text.startswith("[Visual Poster Creative"):
+    if extracted_text and not extracted_text.startswith("[Visual Poster Creative") and not extracted_text.startswith("[Visual PDF Asset"):
+        # Safely bound prompt content length to 6,000 characters to prevent model timeouts
+        eval_content = extracted_text[:6000] if len(extracted_text) > 6000 else extracted_text
         raw_ai_findings = await asyncio.to_thread(
             analyze_content_against_rules,
-            content=extracted_text,
+            content=eval_content,
             relevant_rules=relevant_rules
         )
         grounded_ai_findings = validate_findings(
@@ -250,6 +300,7 @@ async def create_content_review(
             discard_ungrounded=False,
             tag_unverified_gap=True
         )
+    stage_timings["ai_text_analysis_ms"] = round((time.time() - t_ai_start) * 1000, 1)
 
     # 8. Combine Findings (Visual + Deterministic + Grounded AI Text)
     all_findings_to_store: List[Dict[str, Any]] = []
@@ -261,6 +312,7 @@ async def create_content_review(
             all_findings_to_store.append(f)
 
     # 9. Persist ContentSubmission
+    t_db_start = time.time()
     submission = ContentSubmission(
         brand_id=target_brand_id,
         creator_id=current_user.id,
@@ -322,6 +374,12 @@ async def create_content_review(
     for sf in saved_findings:
         db.refresh(sf)
 
+    stage_timings["db_persistence_ms"] = round((time.time() - t_db_start) * 1000, 1)
+    stage_timings["total_pipeline_ms"] = round((time.time() - t_start) * 1000, 1)
+    logger.info(
+        f"[Review Pipeline] Submission {submission.id} completed in {stage_timings['total_pipeline_ms']}ms | Timings: {stage_timings}"
+    )
+
     findings_out = []
     for sf, f_meta in zip(saved_findings, all_findings_to_store):
         item_val = FindingResponse.model_validate(sf).model_dump()
@@ -350,7 +408,8 @@ async def create_content_review(
         "image_preview_url": image_preview_url,
         "visual_analysis_status": visual_status if is_image_asset else None,
         "visual_analysis_message": visual_message if is_image_asset else None,
-        "is_image_asset": is_image_asset
+        "is_image_asset": is_image_asset,
+        "stage_timings": stage_timings,
     }
 
 
