@@ -1,0 +1,154 @@
+[
+  {
+    "name": "Public HTML (Simple/Standard)",
+    "url": "https://example.com/",
+    "guidelines": {
+      "status": 201,
+      "duration_s": 14.01,
+      "rules_extracted": 1,
+      "detail": "Successfully scraped and extracted 1 atomic rules from 'https://example.com/' (extracted for review).",
+      "passed": true
+    },
+    "review": {
+      "status": 201,
+      "duration_s": 12.84,
+      "total_findings": 1,
+      "extracted_sample": "This domain is for use in documentation examples without needing permission. Thi",
+      "detail": "Audited successfully (1 findings)",
+      "passed": true
+    }
+  },
+  {
+    "name": "Public HTML (Complex/Realistic)",
+    "url": "https://site-example.com/",
+    "guidelines": {
+      "status": 201,
+      "duration_s": 2.58,
+      "rules_extracted": 14,
+      "detail": "Successfully scraped and extracted 14 atomic rules from 'https://site-example.com/' (extracted for review).",
+      "passed": true
+    },
+    "review": {
+      "status": 201,
+      "duration_s": 5.43,
+      "total_findings": 1,
+      "extracted_sample": "Site Example A public test website. Use it to test scrapers, SEO tools, link che",
+      "detail": "Audited successfully (1 findings)",
+      "passed": true
+    }
+  },
+  {
+    "name": "Public PDF Asset",
+    "url": "https://science.nasa.gov/wp-content/uploads/2023/07/EARTH_POSTER_OPTIMIZED_Tagged.pdf",
+    "guidelines": {
+      "status": 400,
+      "duration_s": 1.95,
+      "rules_extracted": 0,
+      "detail": "The URL 'https://science.nasa.gov/wp-content/uploads/2023/07/EARTH_POSTER_OPTIMIZED_Tagged.pdf' returned a binary file f",
+      "passed": true
+    },
+    "review": {
+      "status": 201,
+      "duration_s": 42.51,
+      "total_findings": 4,
+      "extracted_sample": "National Aeronautics and Space Administration EARTH | DISCOVER THE WORLD AROUND ",
+      "detail": "Audited successfully (4 findings)",
+      "passed": true
+    }
+  },
+  {
+    "name": "HTTP 404 (Missing Resource)",
+    "url": "https://httpbin.org/status/404",
+    "guidelines": {
+      "status": 400,
+      "duration_s": 1.97,
+      "rules_extracted": 0,
+      "detail": "The webpage at 'https://httpbin.org/status/404' was not found on the remote server (HTTP 404 Not Found). Please check th",
+      "passed": true
+    },
+    "review": {
+      "status": 404,
+      "duration_s": 1.89,
+      "total_findings": 0,
+      "extracted_sample": "",
+      "detail": "[Stage: URL Fetch] The requested resource at 'https://httpbin.org/status/404' was not found on the remote server (HTTP 4",
+      "passed": true
+    }
+  },
+  {
+    "name": "HTTP 403 / WAF Protected (Bot Blocked)",
+    "url": "https://www.ox.ac.uk/about/the-university/brand/guidelines",
+    "guidelines": {
+      "status": 400,
+      "duration_s": 2.63,
+      "rules_extracted": 0,
+      "detail": "The target website at 'https://www.ox.ac.uk/about/the-university/brand/guidelines' is protected by Cloudflare WAF / Bot ",
+      "passed": true
+    },
+    "review": {
+      "status": 403,
+      "duration_s": 1.7,
+      "total_findings": 0,
+      "extracted_sample": "",
+      "detail": "[Stage: URL Fetch] The target website at 'https://www.ox.ac.uk/about/the-university/brand/guidelines' is protected by Cl",
+      "passed": true
+    }
+  },
+  {
+    "name": "SSRF: Localhost (127.0.0.1)",
+    "url": "http://127.0.0.1:8000/admin",
+    "guidelines": {
+      "status": 400,
+      "duration_s": 1.48,
+      "rules_extracted": 0,
+      "detail": "Access to port 8000 is restricted for security (SSRF Protection). Only standard web ports (80, 443, 8080, 8443) are perm",
+      "passed": true
+    },
+    "review": {
+      "status": 400,
+      "duration_s": 2.14,
+      "total_findings": 0,
+      "extracted_sample": "",
+      "detail": "Access to '127.0.0.1' is blocked for SSRF security.",
+      "passed": true
+    }
+  },
+  {
+    "name": "SSRF: Cloud Metadata (169.254.169.254)",
+    "url": "http://169.254.169.254/latest/meta-data/",
+    "guidelines": {
+      "status": 400,
+      "duration_s": 1.44,
+      "rules_extracted": 0,
+      "detail": "Access to cloud metadata services is strictly prohibited (SSRF Protection).",
+      "passed": true
+    },
+    "review": {
+      "status": 400,
+      "duration_s": 2.05,
+      "total_findings": 0,
+      "extracted_sample": "",
+      "detail": "Access to cloud metadata address '169.254.169.254' (169.254.169.254) is blocked for SSRF security.",
+      "passed": true
+    }
+  },
+  {
+    "name": "Unsupported Protocol (FTP)",
+    "url": "ftp://example.com/rules.txt",
+    "guidelines": {
+      "status": 400,
+      "duration_s": 1.47,
+      "rules_extracted": 0,
+      "detail": "Invalid URL scheme 'ftp'. Only 'http' and 'https' protocols are allowed.",
+      "passed": true
+    },
+    "review": {
+      "status": 400,
+      "duration_s": 1.6,
+      "total_findings": 0,
+      "extracted_sample": "",
+      "detail": "Invalid URL scheme 'ftp'. Only http and https are permitted.",
+      "passed": true
+    }
+  }
+]
