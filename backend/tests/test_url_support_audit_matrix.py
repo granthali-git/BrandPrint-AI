@@ -13,9 +13,11 @@ Evaluates:
 - Scheme validation (non-http protocols)
 - Verification that extracted guideline content requires user review before approval.
 """
+import os
+os.environ["TESTING"] = "1"
 import io
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -113,6 +115,13 @@ def setup_database():
     Base.metadata.drop_all(bind=engine)
 
 
+@pytest.fixture(autouse=True)
+def mock_external_services():
+    with patch("app.services.guideline_parser.call_llm_rule_extraction", return_value=[]), \
+         patch("app.routes.reviews.analyze_content_against_rules", return_value=[]):
+        yield
+
+
 @pytest.fixture
 def client():
     return TestClient(app)
@@ -138,7 +147,7 @@ def test_guidelines_public_html_ingestion(client):
     </html>
     """
     with patch("socket.getaddrinfo", return_value=[(2, 1, 0, "", ("93.184.216.34", 443))]), \
-         patch("httpx.AsyncClient.get") as mock_get:
+         patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.is_redirect = False
@@ -250,7 +259,7 @@ def test_guidelines_url_bulk_save_after_review(client):
 def test_guidelines_http_404_error(client):
     """Verify Guidelines handles 404 Not Found upstream error with clear diagnostic detail."""
     with patch("socket.getaddrinfo", return_value=[(2, 1, 0, "", ("93.184.216.34", 443))]), \
-         patch("httpx.AsyncClient.get") as mock_get:
+         patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
         mock_response = MagicMock()
         mock_response.status_code = 404
         mock_response.is_redirect = False
@@ -273,7 +282,7 @@ def test_guidelines_http_404_error(client):
 def test_guidelines_waf_blocked_403(client):
     """Verify Guidelines handles WAF/Bot 403 Forbidden with actionable fallback guidance."""
     with patch("socket.getaddrinfo", return_value=[(2, 1, 0, "", ("93.184.216.34", 443))]), \
-         patch("httpx.AsyncClient.get") as mock_get:
+         patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
         mock_response = MagicMock()
         mock_response.status_code = 403
         mock_response.is_redirect = False
@@ -454,3 +463,86 @@ def test_review_studio_ssrf_protection(client):
     )
     assert response.status_code == 400
     assert "SSRF security" in response.json()["detail"]
+
+
+def test_guidelines_rejects_narrative_text_without_rules(client):
+    """Verify that importing text without normative/imperative rules returns 422 without fabricating fake rules."""
+    narrative_text = (
+        "Welcome to our Company Portal\n"
+        "We are excited to share our mission and vision with the world.\n"
+        "Our team works collaboratively to build modern software and wonderful experiences.\n"
+        "Have a great day browsing our portfolio of products."
+    )
+    with patch("socket.getaddrinfo", return_value=[(2, 1, 0, "", ("93.184.216.34", 443))]), \
+         patch("app.routes.guidelines.scrape_guideline_url", new_callable=AsyncMock) as mock_scrape:
+        mock_scrape.return_value = narrative_text
+
+        response = client.post(
+            "/api/guidelines/ingest-url",
+            json={
+                "url": "https://brandguide.example.com/about",
+                "brand_id": 1,
+            }
+        )
+
+        assert response.status_code == 422
+        assert "could not identify discrete brand guideline rules" in response.json()["detail"]
+
+
+def test_saved_url_rules_ground_review_studio_audit(client):
+    """Verify end-to-end: Ingest URL rules -> Review & Save -> Review Studio finding cites exact URL source."""
+    # 1. Step: Ingest URL with genuine rules
+    guideline_text = (
+        "AstraForge Design System Policies\n"
+        "1. Prohibited Claims: Never use 'unverified claims' in marketing and operational copy.\n"
+        "2. Compliance Mandate: Availability claims must specify 99.99% SLA disclaimers and avoid absolute promises."
+    )
+    with patch("socket.getaddrinfo", return_value=[(2, 1, 0, "", ("93.184.216.34", 443))]), \
+         patch("app.routes.guidelines.scrape_guideline_url", new_callable=AsyncMock) as mock_scrape:
+        mock_scrape.return_value = guideline_text
+
+        ingest_res = client.post(
+            "/api/guidelines/ingest-url",
+            json={
+                "url": "https://brandguide.example.com/design-tokens",
+                "brand_id": 1,
+            }
+        )
+        assert ingest_res.status_code == 201
+        extracted_data = ingest_res.json()
+        assert extracted_data["rules_extracted_count"] >= 1
+        assert "extracted_content" in extracted_data
+        candidate_rules = extracted_data["rules"]
+
+        # 2. Step: User reviews and saves candidate rules to Brand 1
+        save_res = client.post(
+            "/api/guidelines/bulk-save",
+            json={
+                "brand_id": 1,
+                "rules": candidate_rules,
+            }
+        )
+        assert save_res.status_code == 201
+        assert save_res.json()["rules_saved_count"] >= 1
+
+    # 3. Step: Review Studio audits copy that violates the rule
+    non_compliant_copy = "We launched our new cloud service with unverified claims and untested features."
+    review_res = client.post(
+        "/api/reviews",
+        data={
+            "brand_id": "1",
+            "content_type": "text",
+            "raw_content": non_compliant_copy,
+        }
+    )
+    assert review_res.status_code == 201
+    review_data = review_res.json()
+    assert "findings" in review_data
+    assert len(review_data["findings"]) >= 1
+
+    # Check finding metadata and source attribution
+    first_finding = review_data["findings"][0]
+    assert first_finding["source_file"] == "https://brandguide.example.com/design-tokens"
+    assert first_finding["rule_code"] is not None
+    assert first_finding["cited_quote"] is not None
+

@@ -128,12 +128,21 @@ def extract_heuristic_rules(content_text: str, source_name: Optional[str] = None
             if len(clean_item) < 20:
                 continue
 
-            # Identify if statement contains enforceable imperative markers
-            is_enforceable = bool(re.search(
-                r"\b(?:must|never|do not|always|prohibit|prohibited|require|required|avoid|strictly|ensure|only|disallowed|forbidden|cannot)\b",
+            # Identify if statement contains enforceable imperative markers or explicit brand policy terms
+            has_imperative = bool(re.search(
+                r"\b(?:must|never|do not|don't|always|prohibit|prohibited|require|required|mandatory|avoid|strictly|ensure|only|disallowed|forbidden|cannot|shall not|should not)\b",
                 clean_item,
                 re.IGNORECASE
             ))
+            has_brand_policy = bool(re.search(
+                r"\b(?:guideline|guidelines|policy|policies|standard|standards|compliance|contrast|wcag|typography|palette|color code|hex|disclaimer|disclosure|copyright|trademark|superlative|superlatives|#1|cheapest|sla|guarantee|guaranteed)\b",
+                clean_item,
+                re.IGNORECASE
+            ))
+
+            # Only accept statements that are actual enforceable rules or brand policies
+            if not (has_imperative or has_brand_policy):
+                continue
 
             # Determine category
             category = RuleCategory.tone
@@ -189,18 +198,6 @@ def extract_heuristic_rules(content_text: str, source_name: Optional[str] = None
 
             if len(rules) >= 40:
                 break
-
-    # If no individual rules extracted, fallback to single rule if genuine policy content
-    if not rules and len(content_text.strip()) >= 20:
-        if not ("[Document" in content_text and "contained no readable text" in content_text):
-            rules.append({
-                "rule_code": "GEN-01",
-                "category": "legal_compliance",
-                "title": "Corporate Compliance Mandate",
-                "rule_text": content_text.strip()[:400],
-                "severity": "high",
-                "source_file": source_name,
-            })
 
     return rules
 

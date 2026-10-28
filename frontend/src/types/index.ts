@@ -56,6 +56,9 @@ export interface Finding {
   submission_id: number | string;
   version: number;
   rule_id?: number | string | null;
+  rule_code?: string | null;
+  rule_title?: string | null;
+  source_file?: string | null;
   category?: string | null;
   severity: SeverityLevel;
   issue_type: string;

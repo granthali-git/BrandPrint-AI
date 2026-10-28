@@ -14,6 +14,9 @@ class FindingBase(BaseModel):
     submission_id: Union[int, str]
     version: int = 1
     rule_id: Optional[Union[int, str]] = None
+    rule_code: Optional[str] = None
+    rule_title: Optional[str] = None
+    source_file: Optional[str] = None
     category: Optional[str] = None
     issue_type: str
     severity: SeverityLevel = SeverityLevel.medium

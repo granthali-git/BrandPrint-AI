@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   Scale,
   Palette,
+  Globe,
 } from 'lucide-react';
 import { Finding, SeverityLevel } from '../types';
 
@@ -316,13 +317,24 @@ export const FindingCard: React.FC<FindingCardProps> = ({
         </div>
       )}
 
-      {/* 3. Verbatim Guideline Citation Blockquote */}
+      {/* 3. Verbatim Guideline Citation Blockquote with Source Reference */}
       {finding.cited_quote && (
         <div>
-          <span className="text-[10px] font-mono uppercase text-brand-charcoalMuted flex items-center gap-1 font-bold">
-            <BookOpen className="w-3 h-3 text-brand-ocean" />
-            Verbatim Guideline Citation:
-          </span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-mono uppercase text-brand-charcoalMuted flex items-center gap-1 font-bold">
+              <BookOpen className="w-3 h-3 text-brand-ocean" />
+              Verbatim Guideline Citation:
+            </span>
+            {(finding.source_file || finding.rule?.source_file) && (
+              <span
+                className="text-[10px] font-mono text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded flex items-center gap-1 max-w-[200px] truncate"
+                title={`Imported from: ${finding.source_file || finding.rule?.source_file}`}
+              >
+                <Globe className="w-2.5 h-2.5 text-teal-600 shrink-0" />
+                <span className="truncate">Source: {finding.source_file || finding.rule?.source_file}</span>
+              </span>
+            )}
+          </div>
           <blockquote className="mt-1 p-2.5 rounded-lg bg-brand-cream border border-brand-sand text-xs italic text-brand-charcoal leading-relaxed font-sans border-l-2 border-l-brand-ocean">
             "{finding.cited_quote}"
           </blockquote>

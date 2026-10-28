@@ -392,8 +392,16 @@ async def create_content_review(
     )
 
     findings_out = []
+    rules_by_id = {r.id: r for r in all_brand_rules}
     for sf, f_meta in zip(saved_findings, all_findings_to_store):
         item_val = FindingResponse.model_validate(sf).model_dump()
+        rule_ref = rules_by_id.get(sf.rule_id)
+        if rule_ref:
+            item_val["source_file"] = rule_ref.source_file
+            item_val["rule_code"] = rule_ref.rule_code
+            item_val["rule_title"] = rule_ref.title
+            if not item_val.get("cited_quote") and rule_ref.rule_text:
+                item_val["cited_quote"] = rule_ref.rule_text
         if f_meta.get("rule_id") and not item_val.get("rule_id"):
             item_val["rule_id"] = f_meta.get("rule_id")
         if f_meta.get("fix_variations"):
@@ -501,6 +509,12 @@ def get_review_details(
         fr.is_visual = getattr(f, "is_visual", False)
         fr.visual_element = getattr(f, "visual_element", None)
         fr.observed_evidence = getattr(f, "observed_evidence", None)
+        if getattr(f, "rule", None):
+            fr.source_file = f.rule.source_file
+            fr.rule_code = f.rule.rule_code
+            fr.rule_title = f.rule.title
+            if not fr.cited_quote and f.rule.rule_text:
+                fr.cited_quote = f.rule.rule_text
         if not fr.fix_variations or not fr.strategic_tip:
             _, variations, tip = generate_enterprise_fix_variations(
                 flagged_text=f.flagged_text or "",

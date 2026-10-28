@@ -503,6 +503,7 @@ async def ingest_guideline_url(
         "source": payload.url,
         "rules_extracted_count": len(extracted_rules),
         "rules": extracted_rules,
+        "extracted_content": scraped_text[:10000],
         "message": f"Successfully scraped and extracted {len(extracted_rules)} atomic rules from '{payload.url}' ({action_label})."
     }
 

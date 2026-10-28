@@ -131,6 +131,8 @@ export const GuidelinesPage: React.FC = () => {
   // Extraction Review Drawer State
   const [isReviewDrawerOpen, setIsReviewDrawerOpen] = useState(false);
   const [extractedReviewRules, setExtractedReviewRules] = useState<any[]>([]);
+  const [extractedContent, setExtractedContent] = useState<string>('');
+  const [isViewingExtractedContent, setIsViewingExtractedContent] = useState(false);
   const [selectedRuleIndices, setSelectedRuleIndices] = useState<Set<number>>(new Set());
   const [editingRuleIndex, setEditingRuleIndex] = useState<number | null>(null);
   const [reviewSourceTitle, setReviewSourceTitle] = useState<string>('');
@@ -258,10 +260,12 @@ export const GuidelinesPage: React.FC = () => {
 
       const rawRules = res?.rules || [];
       if (rawRules.length === 0) {
-        throw new Error('No discrete rules could be extracted from this webpage.');
+        throw new Error('No discrete brand rules could be extracted from this webpage.');
       }
 
       setExtractedReviewRules(rawRules);
+      setExtractedContent(res?.extracted_content || '');
+      setIsViewingExtractedContent(false);
       setSelectedRuleIndices(new Set(rawRules.map((_: any, idx: number) => idx)));
       setReviewSourceTitle(urlInput.trim());
       setIsReviewDrawerOpen(true);
@@ -853,6 +857,43 @@ export const GuidelinesPage: React.FC = () => {
           {/* TAB 2: Import from URL */}
           {ingestionTab === 'url' && (
             <div className="space-y-4">
+              {errorMessage && (
+                <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 space-y-2.5 animate-in fade-in duration-150">
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <div className="flex-1 font-medium leading-relaxed">
+                      <span className="font-bold block text-rose-900 mb-0.5">Ingestion Diagnostic:</span>
+                      {errorMessage}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 pt-2 border-t border-rose-200 flex-wrap">
+                    <span className="text-[11px] font-mono text-rose-700 font-bold">Recommended Fallbacks:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIngestionTab('upload');
+                        setErrorMessage(null);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-white border border-rose-300 text-rose-900 text-[11px] font-bold hover:bg-rose-100 transition-colors shadow-2xs cursor-pointer flex items-center gap-1"
+                    >
+                      <UploadCloud className="w-3 h-3 text-rose-700" />
+                      <span>Upload Document Instead</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIngestionTab('manual');
+                        setErrorMessage(null);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-white border border-rose-300 text-rose-900 text-[11px] font-bold hover:bg-rose-100 transition-colors shadow-2xs cursor-pointer flex items-center gap-1"
+                    >
+                      <Edit2 className="w-3 h-3 text-rose-700" />
+                      <span>Enter Rules Manually</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <label className="block text-xs font-mono uppercase text-brand-charcoal font-bold">
                   Enter Public Documentation Link (Notion, Google Docs Web view, Company Wiki):
@@ -1100,6 +1141,29 @@ export const GuidelinesPage: React.FC = () => {
 
             {/* Drawer Body: Checklist of Extracted Rules */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {/* Collapsible Raw Extracted Content Viewer */}
+              {extractedContent && (
+                <div className="p-3.5 rounded-xl bg-brand-cream/70 border border-brand-sand">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-mono font-bold text-brand-ocean">
+                      <FileText className="w-3.5 h-3.5 text-brand-amber" />
+                      <span>Extracted Source Content ({extractedContent.length.toLocaleString()} characters)</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsViewingExtractedContent(!isViewingExtractedContent)}
+                      className="text-xs text-brand-amber hover:underline font-semibold cursor-pointer"
+                    >
+                      {isViewingExtractedContent ? '▲ Hide Raw Text' : '▼ Inspect Raw Extracted Text'}
+                    </button>
+                  </div>
+                  {isViewingExtractedContent && (
+                    <div className="mt-2.5 p-3 rounded-lg bg-white border border-brand-sand text-[11px] font-mono text-brand-charcoal max-h-48 overflow-y-auto whitespace-pre-wrap leading-relaxed shadow-inner">
+                      {extractedContent}
+                    </div>
+                  )}
+                </div>
+              )}
               {extractedReviewRules.map((rule, idx) => {
                 const isSelected = selectedRuleIndices.has(idx);
                 const isEditing = editingRuleIndex === idx;
