@@ -128,20 +128,27 @@ def extract_heuristic_rules(content_text: str, source_name: Optional[str] = None
             if len(clean_item) < 20:
                 continue
 
-            # Identify if statement contains enforceable imperative markers or explicit brand policy terms
+            # Identify if statement contains enforceable imperative markers
             has_imperative = bool(re.search(
-                r"\b(?:must|never|do not|don't|always|prohibit|prohibited|require|required|mandatory|avoid|strictly|ensure|only|disallowed|forbidden|cannot|shall not|should not)\b",
+                r"\b(?:must|never|do not|don't|always|prohibit|prohibited|require|required|mandatory|strictly|ensure|disallowed|forbidden|cannot|shall not|should not)\b",
                 clean_item,
                 re.IGNORECASE
             ))
+            # Brand, design, legal, or compliance domain context
             has_brand_policy = bool(re.search(
-                r"\b(?:guideline|guidelines|policy|policies|standard|standards|compliance|contrast|wcag|typography|palette|color code|hex|disclaimer|disclosure|copyright|trademark|superlative|superlatives|#1|cheapest|sla|guarantee|guaranteed)\b",
+                r"\b(?:guideline|guidelines|policy|policies|standard|standards|compliance|claim|claims|contrast|wcag|typography|palette|color|font|logo|hex|disclaimer|disclosure|copyright|trademark|superlative|superlatives|#1|cheapest|sla|guarantee|guaranteed|voice|tone|editorial)\b|#[0-9a-fA-F]{3,6}\b",
                 clean_item,
                 re.IGNORECASE
             ))
 
-            # Only accept statements that are actual enforceable rules or brand policies
-            if not (has_imperative or has_brand_policy):
+            # A meaningful brand rule requires either:
+            # 1. An imperative requirement with brand/policy context (e.g. "Logo must not be modified", "Always use #003366")
+            # 2. Or explicit design tokens/standards (e.g. WCAG contrast, hex codes, prohibited superlatives)
+            # Generic conversational statements without brand context are rejected.
+            is_rule = (has_imperative and has_brand_policy) or bool(
+                re.search(r"\b(?:wcag|#1\b|cheapest\b|contrast ratio|alt-text|#[0-9a-fA-F]{6}\b)", clean_item, re.IGNORECASE)
+            )
+            if not is_rule:
                 continue
 
             # Determine category
