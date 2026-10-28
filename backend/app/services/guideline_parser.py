@@ -4,6 +4,7 @@ searchable, and enforceable atomic guideline rules persisted in the database and
 """
 import json
 import logging
+import os
 import re
 from typing import Any, Dict, List, Optional, Union
 import httpx
@@ -15,19 +16,30 @@ from app.services.ai_service import extract_json_array
 
 logger = logging.getLogger(__name__)
 
-RULE_EXTRACTION_SYSTEM_PROMPT = """You are a regulatory and brand compliance architect. Analyze the provided brand manual/policy document.
+RULE_EXTRACTION_SYSTEM_PROMPT = """You are an enterprise brand compliance architect and design system specialist.
+Analyze the provided brand manual, design guideline image, policy document, or style guide.
 Extract every individual, enforceable guideline rule into an atomic rule item.
+
+Identify and categorize:
+1. Prohibited claims and banned phrases ('prohibited_claim')
+2. Legal and regulatory compliance mandates ('legal_compliance')
+3. Brand voice, tone, and editorial style ('brand_voice' or 'tone')
+4. Approved terminology, product facts, and verified benchmarks ('fact')
+5. Visual design rules: logo usage, color palette hex codes, typography, layout, spacing ('visual')
+6. Accessibility standards: WCAG contrast, alt text, font sizing, screen reader support ('accessibility')
+
 Return a JSON array of rules with fields:
-- rule_code: (e.g., 'CLAIM-01', 'LEGAL-02', 'VOICE-03', 'PRICE-04')
-- category: ('prohibited_claim' | 'legal_compliance' | 'brand_voice' | 'formatting_style')
+- rule_code: (e.g., 'CLAIM-01', 'LEGAL-02', 'VOICE-03', 'VISUAL-04', 'ACCESS-05', 'FACT-06', 'TONE-07')
+- category: ('prohibited_claim' | 'legal_compliance' | 'brand_voice' | 'tone' | 'visual' | 'accessibility' | 'fact')
 - title: Short descriptive title
 - rule_text: Exact, enforceable specification text
 - severity: ('critical' | 'high' | 'medium' | 'low')
 
 Strict Requirements:
 1. Extract atomic, standalone rules. Each rule must express ONE clear compliance constraint or requirement.
-2. Maintain exact numbers, percentages, thresholds, and prohibited phrases mentioned in the text.
-3. Return strictly a JSON array without introductory text:
+2. Maintain exact numbers, percentages, thresholds, hex color codes, font specifications, and prohibited phrases mentioned in the text.
+3. Do not invent or hallucinate rules if the content does not contain clear brand rules or policies.
+4. Return strictly a JSON array without introductory text:
 [
   {
     "rule_code": "CLAIM-01",
@@ -149,6 +161,10 @@ def extract_heuristic_rules(content_text: str, source_name: Optional[str] = None
                 category = RuleCategory.accessibility
                 severity = "high"
                 code_prefix = "ACCESS"
+            elif any(w in item_lower for w in ("fact", "statistic", "verified", "benchmark", "empirical", "accuracy")):
+                category = RuleCategory.fact
+                severity = "high"
+                code_prefix = "FACT"
 
             # Derive title
             if header_title:
@@ -174,22 +190,26 @@ def extract_heuristic_rules(content_text: str, source_name: Optional[str] = None
             if len(rules) >= 40:
                 break
 
-    # If no individual rules extracted, fallback to single rule
+    # If no individual rules extracted, fallback to single rule if genuine policy content
     if not rules and len(content_text.strip()) >= 20:
-        rules.append({
-            "rule_code": "GEN-01",
-            "category": "legal_compliance",
-            "title": "Corporate Compliance Mandate",
-            "rule_text": content_text.strip()[:400],
-            "severity": "high",
-            "source_file": source_name,
-        })
+        if not ("[Document" in content_text and "contained no readable text" in content_text):
+            rules.append({
+                "rule_code": "GEN-01",
+                "category": "legal_compliance",
+                "title": "Corporate Compliance Mandate",
+                "rule_text": content_text.strip()[:400],
+                "severity": "high",
+                "source_file": source_name,
+            })
 
     return rules
 
 
 def call_llm_rule_extraction(content_chunk: str, api_key: Optional[str] = None) -> List[Dict[str, Any]]:
     """Call Gemini LLM with prompt to extract structured atomic guideline rules from a document chunk."""
+    if os.environ.get("TESTING") == "1" and not os.environ.get("TEST_ALLOW_ONLINE_LLM"):
+        return []
+
     effective_api_key = api_key or settings.GEMINI_API_KEY
     if not effective_api_key or not effective_api_key.strip():
         return []
@@ -248,6 +268,11 @@ def extract_rules_from_raw_content(
     and optionally persist to database and FAISS vector index.
     """
     if not content_text or not content_text.strip():
+        return []
+
+    # If document or image was unreadable or contained no text, do not invent rules
+    if "[Document" in content_text and "contained no readable text" in content_text:
+        logger.info(f"Skipping rule extraction for unreadable source: {source_name}")
         return []
 
     target_brand_id = int(brand_id) if str(brand_id).isdigit() else 1

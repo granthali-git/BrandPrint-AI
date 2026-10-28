@@ -11,7 +11,8 @@ from fastapi import HTTPException, status
 
 logger = logging.getLogger(__name__)
 
-# Supported file extensions
+# Supported image and document extensions
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 SUPPORTED_EXTENSIONS = {
     ".pdf",
     ".docx",
@@ -21,10 +22,12 @@ SUPPORTED_EXTENSIONS = {
     ".txt",
     ".md",
     ".csv",
-    ".json"
+    ".json",
+    *IMAGE_EXTENSIONS,
 }
 
 MAX_WORD_LIMIT = 25000
+MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024  # 10 MB per guideline image
 
 
 def validate_and_truncate_text(text: str, max_words: int = MAX_WORD_LIMIT) -> str:
@@ -283,9 +286,124 @@ def extract_from_plaintext(file_bytes: bytes, filename: str) -> str:
             )
 
 
+def extract_from_image_guideline(file_bytes: bytes, filename: str) -> str:
+    """Extract clean text and brand specifications from an image (PNG, JPG, JPEG, WEBP)
+    using Pillow decoding, preprocessing, and Tesseract OCR with Gemini Vision fallback.
+    """
+    if len(file_bytes) > MAX_IMAGE_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Image '{filename}' exceeds maximum allowed size of 10MB."
+        )
+
+    # 1. Pillow Safe Decoding & Verification
+    try:
+        from PIL import Image
+        img_stream = io.BytesIO(file_bytes)
+        image = Image.open(img_stream)
+        image.verify()  # Verifies file integrity and header
+        image = Image.open(io.BytesIO(file_bytes))  # Reopen after verify
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid or corrupted image '{filename}': {str(e)}"
+        )
+
+    # 2. Format Validation
+    fmt = (image.format or "").upper()
+    if fmt not in ("PNG", "JPEG", "JPG", "WEBP"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported image format '{fmt}' for '{filename}'. Supported formats: JPG, JPEG, PNG, WEBP."
+        )
+
+    # 3. Preprocessing: Bound dimensions to 1920x1080 to accelerate OCR & bound memory
+    max_w, max_h = 1920, 1080
+    w, h = image.size
+    if w > max_w or h > max_h:
+        ratio = min(max_w / max(w, 1), max_h / max(h, 1))
+        new_size = (int(w * ratio), int(h * ratio))
+        image = image.resize(new_size, Image.Resampling.LANCZOS)
+
+    # Convert mode to RGB or grayscale if RGBA / Palette
+    if image.mode not in ("RGB", "L"):
+        image = image.convert("RGB")
+
+    # 4. Tesseract OCR Extraction
+    ocr_text = ""
+    try:
+        import pytesseract
+        import shutil
+
+        if not getattr(extract_from_image_guideline, "_checked_paths", False):
+            sys_tess = shutil.which("tesseract")
+            if sys_tess:
+                pytesseract.pytesseract.tesseract_cmd = sys_tess
+            else:
+                for candidate in [
+                    os.getenv("TESSERACT_CMD"),
+                    "/usr/bin/tesseract",
+                    "/usr/local/bin/tesseract",
+                    "/opt/homebrew/bin/tesseract",
+                    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+                ]:
+                    if candidate and os.path.exists(candidate):
+                        pytesseract.pytesseract.tesseract_cmd = candidate
+                        break
+            setattr(extract_from_image_guideline, "_checked_paths", True)
+
+        ocr_text = pytesseract.image_to_string(image)
+        if ocr_text:
+            ocr_text = ocr_text.strip()
+    except (pytesseract.TesseractNotFoundError, FileNotFoundError):
+        logger.info(f"Tesseract OCR not installed or not in PATH. Checking Gemini Vision fallback for '{filename}'.")
+    except Exception as tess_err:
+        logger.warning(f"Tesseract OCR warning on '{filename}': {tess_err}")
+
+    # Evaluate OCR text quality: check for meaningful words
+    cleaned_ocr_words = [w for w in re.split(r"\s+", ocr_text) if len(w) > 1 and any(c.isalnum() for c in w)]
+    if len(cleaned_ocr_words) >= 5 and len(ocr_text) >= 25:
+        logger.info(f"Tesseract OCR extracted {len(cleaned_ocr_words)} words from '{filename}'.")
+        return ocr_text
+
+    # 5. Multimodal Fallback: Gemini Vision if configured
+    try:
+        from app.core.config import settings
+        from app.services.extractors import extract_text_via_gemini_vision
+        gemini_key = os.getenv("GEMINI_API_KEY", "") or getattr(settings, "GEMINI_API_KEY", "")
+        if (os.environ.get("TESTING") == "1") or (gemini_key and gemini_key.strip() and gemini_key != "your_gemini_api_key_here"):
+            vision_text = extract_text_via_gemini_vision(file_bytes, (gemini_key or "mock_test_key").strip())
+            if vision_text and len(vision_text.strip()) >= 20:
+                lower_vision = vision_text.lower()
+                if any(phrase in lower_vision for phrase in (
+                    "contains no text",
+                    "no visible text",
+                    "no text visible",
+                    "no readable text",
+                    "does not contain any text",
+                    "is a solid",
+                    "blank image",
+                )):
+                    logger.info(f"Gemini Vision determined that '{filename}' contains no readable brand text.")
+                    return f"[Document '{filename}' contained no readable text or consists entirely of images/scans.]"
+
+                logger.info(f"Gemini Vision successfully transcribed brand text from '{filename}'.")
+                return vision_text.strip()
+    except Exception as vision_ex:
+        logger.warning(f"Gemini Vision fallback failed for '{filename}': {vision_ex}")
+
+    # 6. If OCR produced any partial text, return it
+    if ocr_text and len(ocr_text.strip()) >= 15:
+        return ocr_text.strip()
+
+    # Empty or unreadable
+    logger.warning(f"Image '{filename}' parsed successfully but produced empty or unreadable text.")
+    return f"[Document '{filename}' contained no readable text or consists entirely of images/scans.]"
+
+
 def extract_text_from_upload(file_bytes: bytes, filename: str) -> str:
     """Unified entrypoint for extracting clean text, hierarchy, and metadata
-    from enterprise uploads (PDF, DOCX, PPTX, TXT/MD/CSV/JSON).
+    from enterprise uploads (PDF, DOCX, PPTX, TXT/MD/CSV/JSON, and Images: JPG, JPEG, PNG, WEBP).
     """
     if not file_bytes:
         raise HTTPException(
@@ -299,7 +417,7 @@ def extract_text_from_upload(file_bytes: bytes, filename: str) -> str:
     if ext not in SUPPORTED_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported file type. Please upload a PDF (.pdf), Word (.docx), PowerPoint (.pptx), or Text (.txt) file."
+            detail="Unsupported file type. Please upload a PDF (.pdf), Word (.docx), PowerPoint (.pptx), Text (.txt), or Image file (.jpg, .jpeg, .png, .webp)."
         )
 
     extracted_raw = ""
@@ -310,6 +428,8 @@ def extract_text_from_upload(file_bytes: bytes, filename: str) -> str:
         extracted_raw = extract_from_docx(file_bytes, clean_filename)
     elif ext in (".pptx", ".ppt"):
         extracted_raw = extract_from_pptx(file_bytes, clean_filename)
+    elif ext in IMAGE_EXTENSIONS:
+        extracted_raw = extract_from_image_guideline(file_bytes, clean_filename)
     else:
         # Plain text formats: .txt, .md, .csv, .json
         extracted_raw = extract_from_plaintext(file_bytes, clean_filename)

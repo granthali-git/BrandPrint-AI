@@ -37,24 +37,40 @@ export const guidelinesApi = {
   /**
    * Upload guideline document (PDF, DOCX, PPTX, or TXT) to auto-extract atomic rules
    */
+  /**
+   * Upload and ingest enterprise brand guideline documents (PDF, Word, PPTX, Text)
+   * or guideline images (JPG, JPEG, PNG, WEBP), single or multiple.
+   */
   uploadDocument: async (
     brandId: number | string,
-    file: File,
+    fileOrFiles: File | File[],
     category?: string,
     autoCommit: boolean = true,
     previewOnly: boolean = false
   ): Promise<any> => {
     const formData = new FormData();
     formData.append('brand_id', String(brandId));
-    formData.append('file', file);
     formData.append('auto_commit', String(autoCommit));
     formData.append('preview_only', String(previewOnly));
     if (category) {
       formData.append('category', category);
     }
+
+    if (Array.isArray(fileOrFiles)) {
+      fileOrFiles.forEach((f) => {
+        formData.append('files', f);
+      });
+      if (fileOrFiles.length > 0) {
+        formData.append('file', fileOrFiles[0]);
+      }
+    } else {
+      formData.append('file', fileOrFiles);
+      formData.append('files', fileOrFiles);
+    }
+
     const response = await apiClient.post<any>('/api/guidelines/upload-document', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 180000, // 3 minutes for heavy document parsing
+      timeout: 180000, // 3 minutes for heavy document & image OCR parsing
     });
     return response.data;
   },

@@ -30,7 +30,10 @@ from app.schemas.guideline import (
     BulkRulesSaveRequest,
     GuidelineIngestResponse,
 )
-from app.services.document_parser import extract_text_from_upload
+from app.services.document_parser import (
+    extract_text_from_upload,
+    extract_from_image_guideline,
+)
 from app.services.scraper_service import scrape_guideline_url
 from app.services.guideline_parser import extract_rules_from_raw_content
 from app.services.extractors import (
@@ -253,7 +256,7 @@ async def create_or_ingest_guideline(
         elif filename_lower.endswith(".docx"):
             extracted_content = extract_from_docx(file_bytes)
         elif any(filename_lower.endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".webp")):
-            extracted_content = extract_from_image(file_bytes)
+            extracted_content = extract_from_image_guideline(file_bytes, source_filename or "image.png")
         else:
             try:
                 extracted_content = file_bytes.decode("utf-8")
@@ -290,25 +293,28 @@ async def create_or_ingest_guideline(
 @router.post(
     "/upload-document",
     status_code=status.HTTP_201_CREATED,
-    summary="Ingest multi-format brand guideline document",
-    description="Ingests PDF, DOCX, PPTX, or TXT documents, extracts atomic rules via LLM, and embeds into FAISS."
+    summary="Ingest multi-format brand guideline documents or images",
+    description="Ingests PDF, DOCX, PPTX, TXT, or Image (JPG, JPEG, PNG, WEBP) documents, extracts atomic rules via LLM/OCR, and embeds into FAISS."
 )
 @router.post(
     "/upload",
     status_code=status.HTTP_201_CREATED,
-    summary="Upload brand guideline document (alias)",
-    description="Accepts PDF, Word, PowerPoint, or Text file, extracts atomic rules via LLM, and indexes into FAISS."
+    summary="Upload brand guideline document or image (alias)",
+    description="Accepts PDF, Word, PowerPoint, Text, or Image files (single or multiple), extracts atomic rules via LLM/OCR, and indexes into FAISS."
 )
 async def upload_guideline_document(
     brand_id: Union[int, str] = Form(...),
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(None),
+    files: Optional[List[UploadFile]] = File(None),
     category: Optional[RuleCategory] = Form(None),
     auto_commit: bool = Form(True),
     preview_only: bool = Form(False),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Upload enterprise guideline document (.pdf, .docx, .pptx, .txt), extract atomic rules via LLM, and index."""
+    """Upload enterprise guideline documents (.pdf, .docx, .pptx, .txt) or guideline images (.jpg, .jpeg, .png, .webp).
+    Supports single or multiple images/documents, extracts atomic rules preserving source filenames, and indexes.
+    """
     target_brand_id = to_brand_id(brand_id)
     brand = db.query(Brand).filter(Brand.id == target_brand_id).first()
     if not brand:
@@ -317,35 +323,133 @@ async def upload_guideline_document(
             detail=f"Brand with ID '{brand_id}' not found."
         )
 
-    file_bytes = await file.read()
-    filename = file.filename or "uploaded_guideline"
+    # Collect all uploaded files while preserving order
+    uploaded_files: List[UploadFile] = []
+    if files:
+        uploaded_files.extend(files)
+    if file:
+        if not any(f.filename == file.filename for f in uploaded_files):
+            uploaded_files.insert(0, file)
 
-    # Extract text cleanly across office formats
-    extracted_text = extract_text_from_upload(file_bytes, filename)
-    if not extracted_text or not extracted_text.strip():
+    if not uploaded_files:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No readable text could be extracted from '{filename}'."
+            detail="No files uploaded. Please upload at least one guideline document (PDF, Word, PPTX, Text) or image (JPG, JPEG, PNG, WEBP)."
         )
 
     commit_to_db = auto_commit and not preview_only
+    all_extracted_rules: List[Dict[str, Any]] = []
+    processed_sources: List[str] = []
+    failed_sources: List[str] = []
 
-    # Extract atomic rules using LLM architecture + fallback
-    extracted_rules = extract_rules_from_raw_content(
-        content_text=extracted_text,
-        brand_id=target_brand_id,
-        db_session=db if commit_to_db else None,
-        auto_commit=commit_to_db,
-        source_name=filename
-    )
+    for upload_item in uploaded_files:
+        filename = upload_item.filename or "uploaded_guideline"
+        file_bytes = await upload_item.read()
+
+        if len(file_bytes) > 15 * 1024 * 1024:
+            failed_sources.append(f"'{filename}' exceeds the 15MB limit")
+            continue
+
+        try:
+            extracted_text = extract_text_from_upload(file_bytes, filename)
+        except HTTPException as http_e:
+            failed_sources.append(f"'{filename}': {http_e.detail}")
+            continue
+        except Exception as e:
+            failed_sources.append(f"'{filename}': {str(e)}")
+            continue
+
+        if not extracted_text or not extracted_text.strip() or (extracted_text.startswith("[Document") and "contained no readable text" in extracted_text):
+            failed_sources.append(f"'{filename}': No readable text or specifications could be extracted (image may be blurry or unreadable)")
+            continue
+
+        # Extract discrete atomic rules preserving source filename
+        rules = extract_rules_from_raw_content(
+            content_text=extracted_text,
+            brand_id=target_brand_id,
+            db_session=None,
+            auto_commit=False,
+            source_name=filename
+        )
+
+        if rules:
+            all_extracted_rules.extend(rules)
+            processed_sources.append(filename)
+        else:
+            failed_sources.append(f"'{filename}': No discrete brand policies or rules identified")
+
+    if not all_extracted_rules:
+        error_reasons = "; ".join(failed_sources) if failed_sources else "No readable brand guidelines could be extracted."
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unable to extract brand guideline rules: {error_reasons}"
+        )
+
+    # Persist and index into FAISS if auto_commit is requested
+    if commit_to_db and all_extracted_rules:
+        existing_rules = (
+            db.query(GuidelineRule)
+            .filter(GuidelineRule.brand_id == target_brand_id, GuidelineRule.is_active == True)
+            .all()
+        )
+        existing_signatures = {
+            (r.title.strip().lower(), r.rule_text.strip().lower()[:80])
+            for r in existing_rules
+        }
+
+        created_orm_rules = []
+        for rule_dict in all_extracted_rules:
+            sig = (rule_dict["title"].strip().lower(), rule_dict["rule_text"].strip().lower()[:80])
+            if sig in existing_signatures:
+                continue
+
+            try:
+                orm_cat = RuleCategory(rule_dict["category"])
+            except Exception:
+                orm_cat = RuleCategory.tone
+
+            orm_rule = GuidelineRule(
+                brand_id=target_brand_id,
+                category=orm_cat,
+                title=rule_dict["title"],
+                rule_text=rule_dict["rule_text"],
+                rule_code=rule_dict["rule_code"],
+                source_file=rule_dict.get("source_file") or (", ".join(processed_sources) if processed_sources else "Uploaded Guideline"),
+                is_active=True,
+                version=1
+            )
+            db.add(orm_rule)
+            created_orm_rules.append(orm_rule)
+
+        if created_orm_rules:
+            db.commit()
+            for r in created_orm_rules:
+                db.refresh(r)
+
+            try:
+                from app.services.vector_store import index_brand_rules
+                all_brand_rules = (
+                    db.query(GuidelineRule)
+                    .filter(GuidelineRule.brand_id == target_brand_id, GuidelineRule.is_active == True)
+                    .all()
+                )
+                index_brand_rules(target_brand_id, all_brand_rules)
+            except Exception as vector_err:
+                logger.warning(f"Could not re-index FAISS store after rule ingestion: {vector_err}")
+
+            for idx, orm_r in enumerate(created_orm_rules):
+                if idx < len(all_extracted_rules):
+                    all_extracted_rules[idx]["id"] = orm_r.id
 
     action_label = "saved and indexed into FAISS" if commit_to_db else "extracted for review"
+    source_summary = ", ".join(processed_sources)
     return {
         "brand_id": target_brand_id,
-        "source": filename,
-        "rules_extracted_count": len(extracted_rules),
-        "rules": extracted_rules,
-        "message": f"Successfully extracted {len(extracted_rules)} atomic rules from '{filename}' ({action_label})."
+        "source": source_summary,
+        "sources": processed_sources,
+        "rules_extracted_count": len(all_extracted_rules),
+        "rules": all_extracted_rules,
+        "message": f"Successfully extracted {len(all_extracted_rules)} atomic rules across {len(processed_sources)} source(s) ({action_label})."
     }
 
 
@@ -450,7 +554,7 @@ def bulk_save_guideline_rules(
             title=title,
             rule_text=rule_text,
             rule_code=rule_code,
-            source_file=payload.source_name or "Bulk Ingestion",
+            source_file=r.get("source_file") or payload.source_name or "Bulk Ingestion",
             is_active=True,
             version=1
         )

@@ -22,6 +22,7 @@ import {
   Sliders,
   CheckCircle2,
   AlertCircle,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { guidelinesApi } from '../api/guidelines';
@@ -38,11 +39,82 @@ export const GuidelinesPage: React.FC = () => {
   const [ingestionTab, setIngestionTab] = useState<'upload' | 'url' | 'manual'>('upload');
   const [isIngestionOpen, setIsIngestionOpen] = useState(false);
 
-  // Document Upload Tab State
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  // Document & Image Upload Tab State
+  interface UploadedGuidelineItem {
+    id: string;
+    file: File;
+    name: string;
+    size: number;
+    isImage: boolean;
+    previewUrl?: string;
+  }
+
+  const [selectedFiles, setSelectedFiles] = useState<UploadedGuidelineItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgressStage, setUploadProgressStage] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
+
+  // Validate and append incoming files
+  const handleAddFiles = (fileList: FileList | File[]) => {
+    setErrorMessage(null);
+    const incoming = Array.from(fileList);
+    const validItems: UploadedGuidelineItem[] = [];
+
+    for (const f of incoming) {
+      const ext = f.name.substring(f.name.lastIndexOf('.')).toLowerCase();
+      const isImg = ['.jpg', '.jpeg', '.png', '.webp'].includes(ext) || f.type.startsWith('image/');
+      const isDoc = ['.pdf', '.docx', '.doc', '.pptx', '.ppt', '.txt', '.md'].includes(ext);
+
+      if (!isImg && !isDoc) {
+        setErrorMessage(
+          `File "${f.name}" has an unsupported format. Supported formats: Images (JPG, JPEG, PNG, WEBP), PDF, Word (.docx), PowerPoint (.pptx), and Plain Text (.txt).`
+        );
+        return;
+      }
+
+      if (f.size > 10 * 1024 * 1024) {
+        setErrorMessage(
+          `File "${f.name}" exceeds the 10MB maximum upload limit (${(f.size / (1024 * 1024)).toFixed(1)}MB). Please upload files under 10MB.`
+        );
+        return;
+      }
+
+      const id = `${f.name}-${f.size}-${Date.now()}-${Math.random()}`;
+      const previewUrl = isImg ? URL.createObjectURL(f) : undefined;
+
+      validItems.push({
+        id,
+        file: f,
+        name: f.name,
+        size: f.size,
+        isImage: isImg,
+        previewUrl,
+      });
+    }
+
+    if (validItems.length > 0) {
+      setSelectedFiles((prev) => [...prev, ...validItems]);
+    }
+  };
+
+  const handleRemoveFile = (id: string) => {
+    setSelectedFiles((prev) => {
+      const target = prev.find((item) => item.id === id);
+      if (target?.previewUrl) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return prev.filter((item) => item.id !== id);
+    });
+  };
+
+  const handleClearAllFiles = () => {
+    selectedFiles.forEach((item) => {
+      if (item.previewUrl) {
+        URL.revokeObjectURL(item.previewUrl);
+      }
+    });
+    setSelectedFiles([]);
+  };
 
   // URL Ingest Tab State
   const [urlInput, setUrlInput] = useState('');
@@ -88,31 +160,43 @@ export const GuidelinesPage: React.FC = () => {
     fetchGuidelines();
   }, [currentBrand.id]);
 
-  // Handle Document Upload & Rule Extraction
+  // Handle Document & Image Upload & Rule Extraction
   const handleUploadDocumentSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!uploadFile) {
-      setErrorMessage('Please select a PDF, Word, PowerPoint, or Text file.');
+    if (selectedFiles.length === 0) {
+      setErrorMessage('Please select or drop at least one brand guideline document or image (JPG, JPEG, PNG, WEBP).');
       return;
     }
 
     setIsUploading(true);
     setErrorMessage(null);
-    setUploadProgressStage('Extracting document sections and slide hierarchies...');
+
+    const hasImages = selectedFiles.some((f) => f.isImage);
+    const hasDocs = selectedFiles.some((f) => !f.isImage);
+
+    setUploadProgressStage(
+      hasImages && hasDocs
+        ? 'Extracting document hierarchies and running Tesseract OCR on images...'
+        : hasImages
+        ? 'Running Pillow decoding & Tesseract OCR on guideline images...'
+        : 'Extracting document sections and slide hierarchies...'
+    );
 
     try {
       const stageTimer1 = setTimeout(() => {
-        setUploadProgressStage('Synthesizing atomic rules via LLM reasoning...');
-      }, 1200);
+        setUploadProgressStage('Synthesizing atomic rules & Brand DNA via LLM reasoning...');
+      }, 1400);
 
       const stageTimer2 = setTimeout(() => {
         setUploadProgressStage('Generating vector embeddings & formatting rules...');
-      }, 2600);
+      }, 2800);
+
+      const filesToUpload = selectedFiles.map((item) => item.file);
 
       // Call uploadDocument with preview_only=true to populate the Review Drawer first
       const res = await guidelinesApi.uploadDocument(
         currentBrand.id,
-        uploadFile,
+        filesToUpload,
         undefined,
         false, // autoCommit = false
         true   // previewOnly = true
@@ -123,14 +207,18 @@ export const GuidelinesPage: React.FC = () => {
 
       const rawRules = res?.rules || [];
       if (rawRules.length === 0) {
-        throw new Error('No discrete rules could be extracted from this document.');
+        throw new Error('No discrete brand rules could be extracted from the uploaded file(s).');
       }
 
       setExtractedReviewRules(rawRules);
       setSelectedRuleIndices(new Set(rawRules.map((_: any, idx: number) => idx)));
-      setReviewSourceTitle(uploadFile.name);
+      setReviewSourceTitle(
+        selectedFiles.length === 1
+          ? selectedFiles[0].name
+          : `${selectedFiles.length} guideline files (${selectedFiles.map((f) => f.name).join(', ')})`
+      );
       setIsReviewDrawerOpen(true);
-      setUploadFile(null);
+      handleClearAllFiles();
       setIsIngestionOpen(false);
     } catch (err: any) {
       setErrorMessage(
@@ -473,14 +561,18 @@ export const GuidelinesPage: React.FC = () => {
             </div>
           </div>
 
-          {/* TAB 1: Document Upload */}
+          {/* TAB 1: Document & Image Upload */}
           {ingestionTab === 'upload' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between text-xs font-mono text-brand-charcoalMuted">
+              <div className="flex items-center justify-between text-xs font-mono text-brand-charcoalMuted flex-wrap gap-2">
                 <span className="font-bold uppercase tracking-wider text-brand-charcoal">
                   Supported Enterprise Formats:
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200 font-bold text-[10px] flex items-center gap-1 shadow-xs">
+                    <ImageIcon className="w-2.5 h-2.5 text-teal-700" />
+                    Images (JPG, JPEG, PNG, WEBP)
+                  </span>
                   <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-800 border border-rose-200 font-bold text-[10px]">
                     PDF Book
                   </span>
@@ -496,65 +588,169 @@ export const GuidelinesPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Drag and Drop Zone */}
-              <div
-                className={`p-8 rounded-2xl border-2 border-dashed transition-all cursor-pointer text-center space-y-3 ${
-                  isDragging
-                    ? 'border-brand-amber bg-brand-amber/10 scale-[1.01]'
-                    : 'border-brand-sand hover:border-brand-ocean bg-brand-cream/30'
-                }`}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setIsDragging(true);
-                }}
-                onDragLeave={(e) => {
-                  e.preventDefault();
-                  setIsDragging(false);
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDragging(false);
-                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                    setUploadFile(e.dataTransfer.files[0]);
+              {/* Hidden multi-file input */}
+              <input
+                id="guideline-file-input"
+                type="file"
+                multiple
+                accept=".pdf,.docx,.doc,.pptx,.ppt,.txt,.md,.png,.jpg,.jpeg,.webp"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files.length > 0) {
+                    handleAddFiles(e.target.files);
                   }
+                  e.target.value = '';
                 }}
-                onClick={() => document.getElementById('guideline-file-input')?.click()}
-                id="guideline-dropzone"
-              >
-                <input
-                  id="guideline-file-input"
-                  type="file"
-                  accept=".pdf,.docx,.doc,.pptx,.ppt,.txt,.md"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      setUploadFile(e.target.files[0]);
+                className="hidden"
+              />
+
+              {/* Dropzone or Multi-File Preview List */}
+              {selectedFiles.length === 0 ? (
+                /* Empty Drag & Drop Zone */
+                <div
+                  className={`p-8 rounded-2xl border-2 border-dashed transition-all cursor-pointer text-center space-y-3 ${
+                    isDragging
+                      ? 'border-brand-amber bg-brand-amber/10 scale-[1.01]'
+                      : 'border-brand-sand hover:border-brand-ocean bg-brand-cream/30'
+                  }`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                      handleAddFiles(e.dataTransfer.files);
                     }
                   }}
-                  className="hidden"
-                />
-
-                <div className="w-12 h-12 rounded-xl bg-brand-ocean/10 text-brand-ocean mx-auto flex items-center justify-center">
-                  <UploadCloud className="w-6 h-6 text-brand-ocean" />
-                </div>
-
-                {uploadFile ? (
-                  <div className="space-y-1">
-                    <div className="text-sm font-bold text-brand-charcoal">{uploadFile.name}</div>
-                    <div className="text-xs font-mono text-brand-charcoalMuted">
-                      {(uploadFile.size / 1024).toFixed(1)} KB • Ready for extraction
-                    </div>
+                  onClick={() => document.getElementById('guideline-file-input')?.click()}
+                  id="guideline-dropzone"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-brand-ocean/10 text-brand-ocean mx-auto flex items-center justify-center">
+                    <UploadCloud className="w-6 h-6 text-brand-ocean" />
                   </div>
-                ) : (
+
                   <div className="space-y-1">
                     <div className="text-sm font-bold text-brand-charcoal">
-                      Drop enterprise guideline manual here, or click to browse
+                      Drop enterprise guideline documents or images here, or click to browse
                     </div>
                     <p className="text-xs text-brand-charcoalMuted">
-                      Multi-format PDF whitepapers, Word compliance standards, and slide decks are supported.
+                      Upload single or multiple guideline images (JPG, JPEG, PNG, WEBP), multi-page PDF whitepapers, Word manuals, or slide decks.
                     </p>
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                /* Selected Files Gallery & List with Previews */
+                <div className="p-4 rounded-2xl border border-brand-sand bg-brand-cream/30 space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-brand-sand/60">
+                    <div className="flex items-center gap-2 text-xs font-mono font-bold text-brand-charcoal">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>
+                        {selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''} selected (
+                        {(selectedFiles.reduce((acc, f) => acc + f.size, 0) / 1024).toFixed(1)} KB total)
+                      </span>
+                      <span className="text-brand-charcoalMuted font-normal">• Ready for extraction</span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => document.getElementById('guideline-file-input')?.click()}
+                        className="text-[11px] font-mono text-brand-ocean hover:text-brand-oceanDark font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Add More</span>
+                      </button>
+                      <span className="text-brand-sand">•</span>
+                      <button
+                        type="button"
+                        onClick={handleClearAllFiles}
+                        className="text-[11px] font-mono text-rose-600 hover:text-rose-800 font-bold cursor-pointer"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Selected Files Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1">
+                    {selectedFiles.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-3 p-2.5 rounded-xl bg-white border border-brand-sand shadow-card-soft transition-all hover:border-brand-ocean/40"
+                      >
+                        {item.isImage && item.previewUrl ? (
+                          <img
+                            src={item.previewUrl}
+                            alt={item.name}
+                            className="w-12 h-12 rounded-lg object-cover border border-brand-sand shrink-0 shadow-xs"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-lg bg-brand-ocean/10 text-brand-ocean flex items-center justify-center shrink-0">
+                            <FileText className="w-6 h-6" />
+                          </div>
+                        )}
+
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-bold text-brand-charcoal truncate" title={item.name}>
+                            {item.name}
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] font-mono text-brand-charcoalMuted mt-0.5">
+                            <span>{(item.size / 1024).toFixed(1)} KB</span>
+                            <span className="text-brand-sand">•</span>
+                            <span className={item.isImage ? 'text-teal-700 font-bold' : 'text-blue-700 font-bold'}>
+                              {item.isImage ? 'Image (OCR)' : 'Document'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveFile(item.id);
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors shrink-0 cursor-pointer"
+                          title="Remove file"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Drop zone strip for adding more */}
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDragging(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      setIsDragging(false);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDragging(false);
+                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        handleAddFiles(e.dataTransfer.files);
+                      }
+                    }}
+                    onClick={() => document.getElementById('guideline-file-input')?.click()}
+                    className={`py-2 px-3 rounded-xl border border-dashed text-center text-[11px] font-mono transition-all cursor-pointer ${
+                      isDragging
+                        ? 'border-brand-amber bg-brand-amber/10 text-brand-amber'
+                        : 'border-brand-sand/80 hover:border-brand-ocean text-brand-charcoalMuted hover:text-brand-charcoal'
+                    }`}
+                  >
+                    + Drag and drop more images or click to browse additional files
+                  </div>
+                </div>
+              )}
 
               {/* Progress and Actions */}
               {isUploading && (
@@ -572,8 +768,29 @@ export const GuidelinesPage: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex items-center justify-between pt-2">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between pt-2 flex-wrap gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch('/test_assets/brand_visual_policy.png');
+                        const blob = await res.blob();
+                        const file = new File([blob], 'brand_visual_policy.png', {
+                          type: 'image/png',
+                        });
+                        handleAddFiles([file]);
+                      } catch (err) {
+                        console.error('Failed to load sample image:', err);
+                      }
+                    }}
+                    className="text-[11px] font-mono text-teal-800 hover:text-teal-950 flex items-center gap-1 font-bold bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200 cursor-pointer shadow-xs"
+                    id="btn-sample-image-guidelines"
+                  >
+                    <ImageIcon className="w-3 h-3 text-teal-700" />
+                    <span>Load Sample Image Guidelines</span>
+                  </button>
+                  <span className="text-brand-sand">•</span>
                   <button
                     type="button"
                     onClick={async () => {
@@ -583,7 +800,7 @@ export const GuidelinesPage: React.FC = () => {
                         const file = new File([blob], 'product_guidelines.docx', {
                           type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                         });
-                        setUploadFile(file);
+                        handleAddFiles([file]);
                       } catch (err) {
                         console.error(err);
                       }
@@ -603,7 +820,7 @@ export const GuidelinesPage: React.FC = () => {
                         const file = new File([blob], 'enterprise_presentation.pptx', {
                           type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
                         });
-                        setUploadFile(file);
+                        handleAddFiles([file]);
                       } catch (err) {
                         console.error(err);
                       }
@@ -618,7 +835,7 @@ export const GuidelinesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handleUploadDocumentSubmit()}
-                  disabled={!uploadFile || isUploading}
+                  disabled={selectedFiles.length === 0 || isUploading}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-amber hover:bg-brand-amberHover text-white text-xs font-bold shadow-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
                   id="btn-submit-doc-upload"
                 >
@@ -627,7 +844,7 @@ export const GuidelinesPage: React.FC = () => {
                   ) : (
                     <Sparkles className="w-4 h-4 text-white" />
                   )}
-                  <span>Extract Atomic Rules</span>
+                  <span>Extract Atomic Rules {selectedFiles.length > 0 ? `(${selectedFiles.length})` : ''}</span>
                 </button>
               </div>
             </div>
@@ -1036,6 +1253,14 @@ export const GuidelinesPage: React.FC = () => {
                                 >
                                   {(rule.severity || 'high').toUpperCase()}
                                 </span>
+                                {rule.source_file && (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-teal-50 text-teal-800 border border-teal-200 flex items-center gap-1">
+                                    <FileText className="w-2.5 h-2.5 text-teal-700" />
+                                    <span className="max-w-[160px] truncate" title={rule.source_file}>
+                                      {rule.source_file}
+                                    </span>
+                                  </span>
+                                )}
                               </div>
 
                               <button
