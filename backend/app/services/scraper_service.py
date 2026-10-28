@@ -34,10 +34,10 @@ MAX_REDIRECTS = 5
 MAX_PAYLOAD_BYTES = 10 * 1024 * 1024
 
 
-def validate_url_for_ssrf(url: str) -> None:
+def validate_url_for_ssrf(url: str) -> str:
     """Validate that the given URL does not target localhost, private subnets,
-
     link-local addresses, sensitive internal ports, or cloud metadata endpoints.
+    Returns cleaned URL with protocol scheme ensured.
     """
     if not url or not isinstance(url, str):
         raise HTTPException(
@@ -46,6 +46,15 @@ def validate_url_for_ssrf(url: str) -> None:
         )
 
     clean_url = url.strip()
+    if not clean_url.startswith(("http://", "https://")):
+        if "://" not in clean_url:
+            clean_url = "https://" + clean_url
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid URL scheme in '{url}'. Only 'http' and 'https' protocols are allowed."
+            )
+
     try:
         parsed = urlparse(clean_url)
     except Exception as e:
@@ -129,6 +138,8 @@ def validate_url_for_ssrf(url: str) -> None:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Access to private/local network IP '{ip_str}' is prohibited (SSRF Protection)."
             )
+
+    return clean_url
 
 
 def diagnose_upstream_error(response: httpx.Response, url: str) -> str:
@@ -247,7 +258,7 @@ async def scrape_guideline_url(url: str) -> str:
     }
 
     # 2. Hop-by-hop redirect following with strict SSRF validation before each request
-    current_url = url.strip()
+    current_url = validate_url_for_ssrf(url)
     redirect_count = 0
     final_response: Optional[httpx.Response] = None
 
@@ -256,8 +267,8 @@ async def scrape_guideline_url(url: str) -> str:
     try:
         async with httpx.AsyncClient(timeout=timeout_config, follow_redirects=False) as client:
             while redirect_count <= MAX_REDIRECTS:
-                # Validate URL before dispatching the HTTP request
-                validate_url_for_ssrf(current_url)
+                # Validate URL before dispatching each HTTP request
+                current_url = validate_url_for_ssrf(current_url)
 
                 try:
                     response = await client.get(current_url, headers=headers)
@@ -301,7 +312,7 @@ async def scrape_guideline_url(url: str) -> str:
                     next_url = urljoin(current_url, location)
 
                     # Strictly validate the next hop for SSRF BEFORE following it!
-                    validate_url_for_ssrf(next_url)
+                    next_url = validate_url_for_ssrf(next_url)
                     current_url = next_url
                     continue
                 else:
@@ -330,25 +341,43 @@ async def scrape_guideline_url(url: str) -> str:
             detail=diagnostic_msg
         )
 
-    # 4. Check Content-Type (ensure it's HTML or text, not binary / PDF / images)
+    # 4. Check Content-Type & Format (supports HTML pages and public PDF guideline documents)
     content_type_header = final_response.headers.get("content-type", "").lower()
-    if content_type_header:
-        base_content_type = content_type_header.split(";")[0].strip()
-        if base_content_type in ("application/pdf", "application/zip", "application/octet-stream") or base_content_type.startswith("image/"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f"The URL '{current_url}' returned a binary file format ('{base_content_type}') instead of an HTML web page. "
-                    "To import PDF documents or image creative assets, please use the 'Upload Document' tab."
-                )
-            )
+    base_content_type = content_type_header.split(";")[0].strip() if content_type_header else ""
+    body_bytes = final_response.content
 
     # 5. Check Content-Length to protect against oversized payloads
-    body_bytes = final_response.content
     if len(body_bytes) > MAX_PAYLOAD_BYTES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"The web page at '{current_url}' exceeds the maximum allowed size of 10 MB ({len(body_bytes) // (1024 * 1024)} MB)."
+            detail=f"The resource at '{current_url}' exceeds the maximum allowed size of 10 MB ({len(body_bytes) // (1024 * 1024)} MB)."
+        )
+
+    is_pdf = (
+        body_bytes.startswith(b"%PDF-")
+        or base_content_type in ("application/pdf", "application/x-pdf")
+        or current_url.lower().endswith(".pdf")
+    )
+
+    if is_pdf:
+        logger.info(f"Extracting guideline text from PDF URL: {current_url}")
+        from app.services.document_parser import extract_from_pdf
+        pdf_text = extract_from_pdf(body_bytes, current_url)
+        if not pdf_text or len(pdf_text.strip()) < 30:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Successfully downloaded PDF from '{current_url}', but could not extract readable guideline text. The document may be scanned or empty."
+            )
+        logger.info(f"Successfully extracted {len(pdf_text)} characters of guideline text from PDF URL '{current_url}'.")
+        return pdf_text
+
+    if base_content_type in ("application/zip", "application/octet-stream") or base_content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"The URL '{current_url}' returned a binary file format ('{base_content_type}') instead of an HTML web page or PDF document. "
+                "To import image creative assets or archives, please use the 'Upload Document' tab."
+            )
         )
 
     html_content = final_response.text
