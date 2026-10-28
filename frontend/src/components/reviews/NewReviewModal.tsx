@@ -334,9 +334,21 @@ export const NewReviewModal: React.FC = () => {
 
           {contentType === 'url' && (
             <div>
-              <label className="block text-xs font-mono uppercase tracking-wider text-brand-charcoalMuted font-bold mb-1.5">
-                Target URL (SSRF Safe)
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-mono uppercase tracking-wider text-brand-charcoalMuted font-bold">
+                  Target URL (SSRF Safe)
+                </label>
+                <div className="flex items-center gap-1.5 text-[11px] font-mono">
+                  <span className="text-brand-charcoalMuted">Quick Fill:</span>
+                  <button
+                    type="button"
+                    onClick={() => setUrl('https://example.com/')}
+                    className="text-brand-amber hover:underline font-semibold cursor-pointer"
+                  >
+                    example.com
+                  </button>
+                </div>
+              </div>
               <input
                 type="url"
                 value={url}

@@ -123,12 +123,20 @@ export const ReviewStudio: React.FC = () => {
       const text = data.extracted_text || data.submission?.raw_content || '';
       setActiveContent(text);
       setRawText(text);
+      if (data.submission?.content_type === 'url') {
+        setInputTab('url');
+      } else if (data.submission?.content_type === 'file') {
+        setInputTab('file');
+      } else {
+        setInputTab('text');
+      }
       if (data.findings && data.findings.length > 0) {
         setSelectedFindingId(data.findings[0].id);
       }
-    } catch {
-      // Backend might not have this ID yet, fall back to interactive demo
-      loadDemoReview();
+    } catch (err: any) {
+      console.warn('Backend load review failed:', err);
+      const msg = err?.response?.data?.detail || err?.message || `Review #${id} could not be loaded.`;
+      setEvalError(typeof msg === 'string' ? msg : JSON.stringify(msg));
     } finally {
       setIsEvaluating(false);
     }
@@ -341,16 +349,16 @@ export const ReviewStudio: React.FC = () => {
         formData.append('file', selectedFile);
       } else if (inputTab === 'url') {
         if (!urlInput.trim()) {
-          setEvalError('Please provide a valid URL.');
+          setEvalError('Please enter a target webpage URL to scrape and evaluate (e.g., https://example.com).');
           setIsEvaluating(false);
           return;
         }
-        formData.append('url', urlInput);
+        formData.append('url', urlInput.trim());
       }
 
       const result = await reviewsApi.submitReview(formData);
       setReviewData(result);
-      const extracted = result.extracted_text || rawText;
+      const extracted = result.extracted_text || (inputTab === 'text' ? rawText : '');
       setActiveContent(extracted);
       setSearchParams({ id: String(result.submission.id) });
 
@@ -363,36 +371,14 @@ export const ReviewStudio: React.FC = () => {
         msg: `Review complete: ${result.total_findings || 0} policy findings detected.`,
       });
     } catch (err: any) {
-      console.warn('Backend evaluation failed:', err);
-      const detailMsg = err.response?.data?.detail;
-      if (detailMsg) {
-        setEvalError(typeof detailMsg === 'string' ? detailMsg : JSON.stringify(detailMsg));
-        return;
-      }
-      // If backend network error on text, generate dynamic analysis for the entered copy
-      const textToAnalyze = inputTab === 'file' ? (selectedFile ? `Document ${selectedFile.name}` : '') : rawText;
-      const dynamicFindings = analyzeCopyDynamically(textToAnalyze);
-      setReviewData({
-        submission: {
-          id: Math.floor(Math.random() * 800) + 10,
-          brand_id: currentBrand?.id || 1,
-          content_type: inputTab,
-          raw_content: textToAnalyze,
-          extracted_text: textToAnalyze,
-          current_version: 1,
-          status: dynamicFindings.length > 0 ? 'changes_required' : 'approved',
-          created_at: new Date().toISOString(),
-        },
-        extracted_text: textToAnalyze,
-        findings: dynamicFindings,
-        total_findings: dynamicFindings.length,
-        deterministic_count: 1,
-        ai_grounded_count: Math.max(0, dynamicFindings.length - 1),
-      });
-      setActiveContent(textToAnalyze);
-      if (dynamicFindings.length > 0) {
-        setSelectedFindingId(dynamicFindings[0].id);
-      }
+      console.error('Compliance review evaluation failed:', err);
+      const detailMsg =
+        err?.response?.data?.detail ||
+        err?.message ||
+        (typeof err === 'string' ? err : 'Compliance evaluation failed.');
+
+      const formattedError = typeof detailMsg === 'string' ? detailMsg : JSON.stringify(detailMsg);
+      setEvalError(formattedError);
     } finally {
       setIsEvaluating(false);
     }
@@ -923,6 +909,20 @@ export const ReviewStudio: React.FC = () => {
             <span className="text-brand-sand">•</span>
             <button
               type="button"
+              onClick={() => {
+                setUrlInput('https://example.com/');
+                setInputTab('url');
+                setEvalError(null);
+              }}
+              className="text-[11px] font-mono text-brand-ocean hover:text-brand-charcoal flex items-center gap-1 font-bold cursor-pointer"
+              id="btn-sample-url"
+            >
+              <Globe className="w-3 h-3 text-brand-amber" />
+              Preset: Example Public URL
+            </button>
+            <span className="text-brand-sand">•</span>
+            <button
+              type="button"
               onClick={async () => {
                 try {
                   const res = await fetch('/test_assets/enterprise_presentation.pptx');
@@ -1122,7 +1122,7 @@ export const ReviewStudio: React.FC = () => {
                 type="url"
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
-                placeholder="https://astraforge.example.com/product/enterprise"
+                placeholder="https://example.com/landing-page"
                 className="flex-1 rounded-xl bg-white border border-brand-sand px-3.5 py-2.5 text-xs text-brand-charcoal placeholder-brand-charcoalMuted font-mono focus:outline-none focus:ring-1 focus:ring-brand-amber"
               />
               <span className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] font-mono text-emerald-700 shrink-0 font-bold">
@@ -1130,9 +1130,35 @@ export const ReviewStudio: React.FC = () => {
                 <span>SSRF Sandboxed</span>
               </span>
             </div>
-            <p className="text-[11px] text-brand-charcoalMuted font-mono">
-              The scraper validates domain safety, filters private IP addresses (RFC 1918), and cleans DOM content before analysis.
-            </p>
+            <div className="flex items-center justify-between flex-wrap gap-2 pt-0.5">
+              <p className="text-[11px] text-brand-charcoalMuted font-mono">
+                Scrapes public HTML pages, extracts clean readable copy, checks image contrast, and audits claims against active guidelines.
+              </p>
+              <div className="flex items-center gap-2 text-[11px] font-mono">
+                <span className="text-brand-charcoalMuted">Quick Fill:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUrlInput('https://example.com/');
+                    setEvalError(null);
+                  }}
+                  className="text-brand-ocean hover:underline font-semibold cursor-pointer"
+                >
+                  example.com
+                </button>
+                <span className="text-brand-sand">•</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUrlInput('https://site-example.com/');
+                    setEvalError(null);
+                  }}
+                  className="text-brand-ocean hover:underline font-semibold cursor-pointer"
+                >
+                  site-example.com
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1199,10 +1225,23 @@ export const ReviewStudio: React.FC = () => {
               <>
                 <div className="flex items-center justify-between border-b border-brand-sand pb-3 flex-wrap gap-2">
                   <div className="flex items-center gap-2">
-                    <Eye className="w-4 h-4 text-brand-ocean" />
+                    {reviewData?.submission?.content_type === 'url' ? (
+                      <Globe className="w-4 h-4 text-brand-ocean" />
+                    ) : (
+                      <Eye className="w-4 h-4 text-brand-ocean" />
+                    )}
                     <h2 className="text-sm font-bold text-brand-charcoal">
-                      {previewImgUrl ? 'Visual Creative & Content' : 'Submitted Content'}
+                      {reviewData?.submission?.content_type === 'url'
+                        ? 'Scraped Webpage Content'
+                        : previewImgUrl
+                        ? 'Visual Creative & Content'
+                        : 'Submitted Content'}
                     </h2>
+                    {reviewData?.submission?.content_type === 'url' && (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">
+                        SSRF Sandboxed
+                      </span>
+                    )}
                   </div>
 
                   {previewImgUrl && (
@@ -1238,6 +1277,23 @@ export const ReviewStudio: React.FC = () => {
                     </span>
                   )}
                 </div>
+
+                {reviewData?.submission?.content_type === 'url' && !previewImgUrl && (
+                  <div className="p-3 rounded-xl bg-brand-oceanLight/10 border border-brand-ocean/20 text-xs text-brand-ocean flex items-start gap-2.5">
+                    <Globe className="w-4 h-4 text-brand-ocean shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-brand-charcoal flex items-center justify-between gap-2">
+                        <span>Extracted Webpage Copy</span>
+                        <span className="text-[10px] font-mono text-brand-charcoalMuted">
+                          {activeContent.split(/\s+/).filter(Boolean).length} words extracted
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-brand-charcoalMuted truncate mt-0.5 font-mono">
+                        Clean DOM text parsed via Trafilatura & HTML Parser
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {previewImgUrl && leftPaneTab === 'visual' ? (
                   <div className="space-y-3.5">

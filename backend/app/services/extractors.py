@@ -184,14 +184,27 @@ def fetch_url_with_ssrf_protection(
     """
     current_url = url.strip()
     headers = {
-        "User-Agent": "BrandPrint-AI-ContentEngine/1.0 (Compliance Crawler)",
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
         "Accept": "text/html,application/xhtml+xml,application/xml,application/pdf,image/*;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
     }
 
     start_time = time.time()
 
     with httpx.Client(
-        timeout=httpx.Timeout(connect=5.0, read=12.0, write=5.0, pool=5.0),
+        timeout=httpx.Timeout(connect=7.0, read=15.0, write=5.0, pool=5.0),
         follow_redirects=False,
         headers=headers
     ) as client:
@@ -592,8 +605,10 @@ def extract_from_html_detailed(html_bytes: bytes, url: str) -> Dict[str, Any]:
     for img in soup.find_all("img"):
         src = img.get("src") or ""
         alt = img.get("alt")
+        clean_src = src.strip()
+        full_src = urljoin(url, clean_src) if clean_src else ""
         images.append({
-            "src": src.strip(),
+            "src": full_src,
             "alt": alt.strip() if isinstance(alt, str) else alt
         })
 

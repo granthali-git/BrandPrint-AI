@@ -176,6 +176,9 @@ async def create_content_review(
             extracted_text = await asyncio.to_thread(extract_text_from_upload, file_bytes, filename)
 
     elif content_type == ContentType.url or url is not None:
+        if not url and raw_content and (raw_content.strip().startswith("http://") or raw_content.strip().startswith("https://")):
+            url = raw_content.strip()
+
         if not url:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -193,6 +196,8 @@ async def create_content_review(
                 file_bytes = url_data["visual_image_bytes"]
                 image_mime_type = url_data.get("mime_type", "image/jpeg")
                 image_preview_url = url_data.get("image_preview_url") or ""
+        except HTTPException:
+            raise
         except ValueError as e:
             err_msg = str(e)
             status_code = status.HTTP_400_BAD_REQUEST
@@ -207,6 +212,12 @@ async def create_content_review(
             raise HTTPException(
                 status_code=status_code,
                 detail=err_msg
+            ) from e
+        except Exception as e:
+            logger.error(f"URL extraction error for '{url}': {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"[Stage: Content Extraction] Error processing URL '{url}': {str(e)}"
             ) from e
 
     else:
@@ -400,6 +411,8 @@ async def create_content_review(
     return {
         "submission": ContentSubmissionResponse.model_validate(submission),
         "extracted_text": extracted_text,
+        "url": url if (content_type == ContentType.url or url) else None,
+        "page_title": (url_data.get("title") if (content_type == ContentType.url or url) and isinstance(url_data, dict) else None),
         "findings": findings_out,
         "total_findings": len(saved_findings),
         "deterministic_count": len(deterministic_findings),
