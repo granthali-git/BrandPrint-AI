@@ -178,9 +178,34 @@ export const reviewsApi = {
     asset_id_b?: string | number;
     text_a?: string;
     text_b?: string;
+    slot_a?: any;
+    slot_b?: any;
     brand_id?: number | string;
   }): Promise<any> => {
     const response = await apiClient.post<any>('/api/reviews/compare', payload);
+    return response.data;
+  },
+
+  /**
+   * Extract readable text and preview from document/image file
+   */
+  extractFile: async (file: File): Promise<any> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<any>('/api/reviews/extract', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  /**
+   * Scrape readable text from a public web page URL
+   */
+  scrapeUrl: async (url: string, brandId?: number | string): Promise<any> => {
+    const response = await apiClient.post<any>('/api/reviews/scrape-url', {
+      url,
+      brand_id: brandId || 1,
+    });
     return response.data;
   },
 };

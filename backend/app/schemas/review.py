@@ -41,12 +41,27 @@ class WhatIfSimulateRequest(BaseModel):
     draft_rules: Optional[list[dict]] = None
 
 
+class CompareSlotPayload(BaseModel):
+    source_type: Optional[str] = "text"  # 'text' | 'file' | 'url'
+    text_content: Optional[str] = None
+    file_name: Optional[str] = None
+    url: Optional[str] = None
+
+
 class ReviewCompareRequest(BaseModel):
     asset_id_a: Optional[Union[str, int]] = None
     asset_id_b: Optional[Union[str, int]] = None
     text_a: Optional[str] = None
     text_b: Optional[str] = None
+    slot_a: Optional[CompareSlotPayload] = None
+    slot_b: Optional[CompareSlotPayload] = None
     brand_id: Optional[Union[str, int]] = 1
+
+
+class ScrapeUrlRequest(BaseModel):
+    url: str
+    brand_id: Optional[Union[str, int]] = 1
+
 
 
 

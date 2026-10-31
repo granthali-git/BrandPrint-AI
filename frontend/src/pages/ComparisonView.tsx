@@ -14,72 +14,165 @@ import {
   RotateCcw,
   FileText,
   SlidersHorizontal,
+  ChevronRight,
+  Diff,
+  Eye,
+  Check,
+  X,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { reviewsApi } from '../api/reviews';
 import { DualComparisonResponse, Finding } from '../types';
+import { SlotCard, SlotState } from '../components/comparison/SlotCard';
 
 export const ComparisonView: React.FC = () => {
   const { currentBrand } = useApp();
 
-  // Mode: Compare existing submissions vs raw text
-  const [mode, setMode] = useState<'submissions' | 'raw_text'>('raw_text');
-  const [recentSubmissions, setRecentSubmissions] = useState<any[]>([]);
-  const [selectedIdA, setSelectedIdA] = useState<string | number>('');
-  const [selectedIdB, setSelectedIdB] = useState<string | number>('');
+  // Slot A State (Baseline / Reference)
+  const [slotA, setSlotA] = useState<SlotState>({
+    sourceType: 'text',
+    content:
+      'Discover AstraForge Enterprise Cloud! We are the cheapest solution and guaranteed #1 platform on the market with 100% infallible uptime. Call right now to claim your exclusive 50% limited promotion discount!',
+    file: null,
+    url: '',
+    previewUrl: null,
+    isExtracting: false,
+    extractionMsg: null,
+  });
 
-  // Raw text inputs
-  const [textA, setTextA] = useState<string>(
-    'Discover AstraForge Enterprise Cloud! We are the cheapest solution and guaranteed #1 platform on the market with 100% infallible uptime. Call right now to claim your exclusive 50% limited promotion discount!'
-  );
-  const [textB, setTextB] = useState<string>(
-    'AstraForge Enterprise Cloud delivers high-availability infrastructure engineered for mission-critical operations. Review our published SOC 2 Type II report and third-party verified 99.99% uptime metrics.'
-  );
+  // Slot B State (Revised / Test Candidate)
+  const [slotB, setSlotB] = useState<SlotState>({
+    sourceType: 'text',
+    content:
+      'AstraForge Enterprise Cloud delivers high-availability infrastructure engineered for mission-critical operations. Review our published SOC 2 Type II report and third-party verified 99.99% uptime metrics.',
+    file: null,
+    url: '',
+    previewUrl: null,
+    isExtracting: false,
+    extractionMsg: null,
+  });
 
   const [loading, setLoading] = useState<boolean>(false);
   const [comparisonResult, setComparisonResult] = useState<DualComparisonResponse | null>(null);
-  const [activeTab, setActiveTab] = useState<'all' | 'resolved' | 'new_risks'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'resolved' | 'new_risks' | 'diff'>('all');
 
-  // Load recent submissions on mount
-  useEffect(() => {
-    reviewsApi
-      .list(currentBrand.id, 10)
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setRecentSubmissions(data);
-          if (data.length >= 2) {
-            setSelectedIdA(data[0].id);
-            setSelectedIdB(data[1].id);
-          } else if (data.length === 1) {
-            setSelectedIdA(data[0].id);
-          }
-        }
-      })
-      .catch((err) => console.warn('Could not load submissions for comparison:', err));
-  }, [currentBrand.id]);
+  // Extraction Handlers for Slot A
+  const handleExtractFileA = async (file: File) => {
+    setSlotA((prev) => ({
+      ...prev,
+      isExtracting: true,
+      extractionMsg: `Processing '${file.name}' via Pillow OCR & document parser...`,
+    }));
+    try {
+      const res = await reviewsApi.extractFile(file);
+      setSlotA((prev) => ({
+        ...prev,
+        content: res.extracted_text || '',
+        previewUrl: res.preview_url || null,
+        isExtracting: false,
+        extractionMsg: null,
+      }));
+    } catch (err: any) {
+      alert(err?.response?.data?.detail || `Failed to extract text from '${file.name}'.`);
+      setSlotA((prev) => ({ ...prev, isExtracting: false, extractionMsg: null }));
+    }
+  };
 
-  // Execute dual comparison
+  const handleScrapeUrlA = async (url: string) => {
+    if (!url.trim()) return;
+    setSlotA((prev) => ({
+      ...prev,
+      isExtracting: true,
+      extractionMsg: 'Scraping webpage with SSRF sandbox...',
+    }));
+    try {
+      const res = await reviewsApi.scrapeUrl(url, currentBrand.id);
+      setSlotA((prev) => ({
+        ...prev,
+        content: res.extracted_text || '',
+        previewUrl: res.image_preview_url || null,
+        isExtracting: false,
+        extractionMsg: null,
+      }));
+    } catch (err: any) {
+      alert(err?.response?.data?.detail || `Failed to scrape URL '${url}'.`);
+      setSlotA((prev) => ({ ...prev, isExtracting: false, extractionMsg: null }));
+    }
+  };
+
+  // Extraction Handlers for Slot B
+  const handleExtractFileB = async (file: File) => {
+    setSlotB((prev) => ({
+      ...prev,
+      isExtracting: true,
+      extractionMsg: `Processing '${file.name}' via Pillow OCR & document parser...`,
+    }));
+    try {
+      const res = await reviewsApi.extractFile(file);
+      setSlotB((prev) => ({
+        ...prev,
+        content: res.extracted_text || '',
+        previewUrl: res.preview_url || null,
+        isExtracting: false,
+        extractionMsg: null,
+      }));
+    } catch (err: any) {
+      alert(err?.response?.data?.detail || `Failed to extract text from '${file.name}'.`);
+      setSlotB((prev) => ({ ...prev, isExtracting: false, extractionMsg: null }));
+    }
+  };
+
+  const handleScrapeUrlB = async (url: string) => {
+    if (!url.trim()) return;
+    setSlotB((prev) => ({
+      ...prev,
+      isExtracting: true,
+      extractionMsg: 'Scraping webpage with SSRF sandbox...',
+    }));
+    try {
+      const res = await reviewsApi.scrapeUrl(url, currentBrand.id);
+      setSlotB((prev) => ({
+        ...prev,
+        content: res.extracted_text || '',
+        previewUrl: res.image_preview_url || null,
+        isExtracting: false,
+        extractionMsg: null,
+      }));
+    } catch (err: any) {
+      alert(err?.response?.data?.detail || `Failed to scrape URL '${url}'.`);
+      setSlotB((prev) => ({ ...prev, isExtracting: false, extractionMsg: null }));
+    }
+  };
+
+  // Run Side-by-Side Dual Comparison Execution
   const handleRunComparison = async () => {
+    const textA = slotA.content.trim();
+    const textB = slotB.content.trim();
+
+    if (!textA || !textB) {
+      alert('Please provide or extract content for both Slot A and Slot B before comparing.');
+      return;
+    }
+
     setLoading(true);
     try {
-      const payload: any = { brand_id: currentBrand.id };
-      if (mode === 'submissions') {
-        if (!selectedIdA || !selectedIdB) {
-          alert('Please select both Slot A and Slot B submissions to compare.');
-          setLoading(false);
-          return;
-        }
-        payload.asset_id_a = selectedIdA;
-        payload.asset_id_b = selectedIdB;
-      } else {
-        if (!textA.trim() || !textB.trim()) {
-          alert('Please enter copy in both Slot A and Slot B.');
-          setLoading(false);
-          return;
-        }
-        payload.text_a = textA;
-        payload.text_b = textB;
-      }
+      const payload = {
+        brand_id: currentBrand.id,
+        slot_a: {
+          source_type: slotA.sourceType,
+          text_content: textA,
+          file_name: slotA.file?.name,
+          url: slotA.url,
+        },
+        slot_b: {
+          source_type: slotB.sourceType,
+          text_content: textB,
+          file_name: slotB.file?.name,
+          url: slotB.url,
+        },
+        text_a: textA,
+        text_b: textB,
+      };
 
       const res = await reviewsApi.compareReviews(payload);
       setComparisonResult(res);
@@ -91,7 +184,7 @@ export const ComparisonView: React.FC = () => {
     }
   };
 
-  // Run automatically on first mount with initial texts
+  // Run automatically on first mount
   useEffect(() => {
     handleRunComparison();
   }, []);
@@ -99,6 +192,55 @@ export const ComparisonView: React.FC = () => {
   const metrics = comparisonResult?.metrics;
   const scoreDelta = comparisonResult?.score_delta ?? 0;
   const isPositiveDelta = scoreDelta >= 0;
+
+  // Simple text diff rendering for visual changes
+  const renderVisualTextDiff = () => {
+    if (!comparisonResult) return null;
+    const wordsA = new Set(
+      comparisonResult.content_a
+        .toLowerCase()
+        .replace(/[^\w\s]/g, '')
+        .split(/\s+/)
+    );
+    const wordsBList = comparisonResult.content_b.split(/\s+/);
+
+    return (
+      <div className="p-4 rounded-xl bg-[#FBF9F4] border border-brand-sand leading-relaxed text-xs font-sans space-y-2">
+        <div className="flex items-center justify-between text-[11px] font-mono text-brand-charcoalMuted border-b border-brand-sand pb-2">
+          <span className="font-bold text-brand-charcoal">Slot B Text with Comparative Inclusions</span>
+          <span className="flex items-center gap-3">
+            <span className="flex items-center gap-1 text-emerald-700">
+              <span className="w-2.5 h-2.5 rounded bg-emerald-100 border border-emerald-300 inline-block" />
+              New or Modified Wording
+            </span>
+            <span className="flex items-center gap-1 text-slate-700">
+              <span className="w-2.5 h-2.5 rounded bg-white border border-slate-300 inline-block" />
+              Retained Baseline
+            </span>
+          </span>
+        </div>
+
+        <div className="p-2 select-text leading-loose">
+          {wordsBList.map((word, idx) => {
+            const cleanWord = word.toLowerCase().replace(/[^\w\s]/g, '');
+            const isNew = cleanWord.length > 2 && !wordsA.has(cleanWord);
+
+            if (isNew) {
+              return (
+                <span
+                  key={idx}
+                  className="inline-block px-1 py-0.5 mx-0.5 bg-emerald-100 text-emerald-900 rounded font-semibold border-b border-emerald-400"
+                >
+                  {word}{' '}
+                </span>
+              );
+            }
+            return <span key={idx}>{word} </span>;
+          })}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200 text-brand-charcoal">
@@ -115,143 +257,57 @@ export const ComparisonView: React.FC = () => {
             </span>
           </div>
           <p className="text-xs text-brand-charcoalMuted mt-1">
-            Comparative brand safety compliance, automated diffing, and policy violation delta tracking.
+            Compare Raw Copy, Uploaded Documents & Images (OCR), or Live Web URLs across two dedicated slots.
           </p>
         </div>
 
-        {/* Input Mode Selector */}
-        <div className="flex items-center gap-2 bg-brand-cream/80 p-1 rounded-xl border border-brand-sand">
-          <button
-            type="button"
-            onClick={() => setMode('raw_text')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              mode === 'raw_text'
-                ? 'bg-brand-ocean text-white shadow-sm'
-                : 'text-brand-charcoalMuted hover:text-brand-charcoal'
-            }`}
-          >
-            Draft Text Diff
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('submissions')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              mode === 'submissions'
-                ? 'bg-brand-ocean text-white shadow-sm'
-                : 'text-brand-charcoalMuted hover:text-brand-charcoal'
-            }`}
-          >
-            Audited Submissions
-          </button>
+        {/* Brand indicator */}
+        <div className="flex items-center gap-2 text-xs font-mono font-semibold px-3 py-1.5 rounded-xl bg-white border border-brand-sand text-brand-charcoal shadow-2xs">
+          <span>Brand:</span>
+          <span className="text-brand-ocean font-bold">{currentBrand.name}</span>
         </div>
       </div>
 
-      {/* Dual Input Slots (Strictly Slot A and Slot B - Capped at 2) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
-        {/* Slot A: Reference Version */}
-        <div className="bg-white rounded-2xl p-5 border border-brand-sand shadow-card-soft flex flex-col space-y-3">
-          <div className="flex items-center justify-between border-b border-brand-sand pb-2.5">
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-brand-ocean text-white text-xs font-mono font-bold flex items-center justify-center">
-                A
-              </span>
-              <h2 className="text-sm font-bold text-brand-charcoal">Slot A (Reference / Draft 1)</h2>
-            </div>
-            <span className="text-[10px] font-mono text-brand-charcoalMuted uppercase tracking-wider font-semibold">
-              Baseline
-            </span>
-          </div>
+      {/* Dual Input Slots (Slot A and Slot B with Full 3 Ingestion Modes) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Slot A: Reference Asset */}
+        <SlotCard
+          slotId="A"
+          roleLabel="Reference / Baseline"
+          state={slotA}
+          onChange={(updates) => setSlotA((prev) => ({ ...prev, ...updates }))}
+          onExtractFile={handleExtractFileA}
+          onScrapeUrl={handleScrapeUrlA}
+        />
 
-          {mode === 'submissions' ? (
-            <div className="space-y-2">
-              <label className="text-xs text-brand-charcoalMuted">Select Audited Asset A:</label>
-              <select
-                value={selectedIdA}
-                onChange={(e) => setSelectedIdA(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-xl border border-brand-sand bg-white text-brand-charcoal focus:ring-1 focus:ring-brand-amber"
-              >
-                <option value="">-- Choose Submission --</option>
-                {recentSubmissions.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    #{s.id} • {s.title || `Review #${s.id}`} ({s.status})
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div className="space-y-1.5 flex-1 flex flex-col">
-              <label className="text-xs text-brand-charcoalMuted">Reference Content Copy:</label>
-              <textarea
-                value={textA}
-                onChange={(e) => setTextA(e.target.value)}
-                rows={4}
-                className="w-full px-3 py-2 text-xs rounded-xl border border-brand-sand bg-[#FBF9F4] text-brand-charcoal focus:ring-1 focus:ring-brand-amber font-sans resize-none flex-1"
-                placeholder="Enter baseline content copy..."
-              />
-            </div>
-          )}
-        </div>
+        {/* Slot B: Revised Asset */}
+        <SlotCard
+          slotId="B"
+          roleLabel="Revised / Candidate Asset"
+          state={slotB}
+          onChange={(updates) => setSlotB((prev) => ({ ...prev, ...updates }))}
+          onExtractFile={handleExtractFileB}
+          onScrapeUrl={handleScrapeUrlB}
+        />
 
-        {/* Slot B: Revised Version */}
-        <div className="bg-white rounded-2xl p-5 border border-brand-sand shadow-card-soft flex flex-col space-y-3">
-          <div className="flex items-center justify-between border-b border-brand-sand pb-2.5">
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-brand-amber text-white text-xs font-mono font-bold flex items-center justify-center">
-                B
-              </span>
-              <h2 className="text-sm font-bold text-brand-charcoal">Slot B (Revised / Test Copy)</h2>
-            </div>
-            <span className="text-[10px] font-mono text-brand-amber font-semibold uppercase tracking-wider">
-              Comparison Candidate
-            </span>
-          </div>
-
-          {mode === 'submissions' ? (
-            <div className="space-y-2">
-              <label className="text-xs text-brand-charcoalMuted">Select Audited Asset B:</label>
-              <select
-                value={selectedIdB}
-                onChange={(e) => setSelectedIdB(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-xl border border-brand-sand bg-white text-brand-charcoal focus:ring-1 focus:ring-brand-amber"
-              >
-                <option value="">-- Choose Submission --</option>
-                {recentSubmissions.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    #{s.id} • {s.title || `Review #${s.id}`} ({s.status})
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div className="space-y-1.5 flex-1 flex flex-col">
-              <label className="text-xs text-brand-charcoalMuted">Revised Content Copy:</label>
-              <textarea
-                value={textB}
-                onChange={(e) => setTextB(e.target.value)}
-                rows={4}
-                className="w-full px-3 py-2 text-xs rounded-xl border border-brand-sand bg-[#FBF9F4] text-brand-charcoal focus:ring-1 focus:ring-brand-amber font-sans resize-none flex-1"
-                placeholder="Enter revised content copy to evaluate improvements..."
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Hard Constraint Cap Notice */}
-        <div className="md:col-span-2 flex items-center justify-between bg-brand-cream/60 p-3 rounded-xl border border-brand-sand text-xs text-brand-charcoalMuted">
+        {/* Primary Action Button Bar */}
+        <div className="md:col-span-2 flex items-center justify-between bg-brand-cream/60 p-4 rounded-2xl border border-brand-sand text-xs text-brand-charcoalMuted shadow-card-soft">
           <div className="flex items-center gap-2">
             <Lock className="w-4 h-4 text-brand-ocean" />
             <span>
-              <strong>Hard Capacity Rule:</strong> Comparison workspace is strictly locked to 2 assets to ensure
-              accurate bi-directional policy diffing. Adding additional slots is disabled.
+              <strong>Hard Capacity Rule:</strong> Comparison workspace is strictly capped at maximum 2 items to
+              guarantee deterministic delta scoring.
             </span>
           </div>
+
           <button
             onClick={handleRunComparison}
-            disabled={loading}
-            className="px-4 py-2 rounded-xl bg-brand-amber hover:bg-brand-amberHover text-white font-bold text-xs shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            disabled={loading || slotA.isExtracting || slotB.isExtracting}
+            className="px-6 py-2.5 rounded-xl bg-brand-amber hover:bg-brand-amberHover text-white font-bold text-xs shadow-sm transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+            id="btn-run-dual-comparison"
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>{loading ? 'Evaluating...' : 'Run Comparative Audit'}</span>
+            <Sparkles className="w-4 h-4" />
+            <span>{loading ? 'Evaluating Compliance Delta...' : 'Compare Assets (Slot A vs Slot B)'}</span>
           </button>
         </div>
       </div>
@@ -262,7 +318,7 @@ export const ComparisonView: React.FC = () => {
           {/* Metric 1: Safety Score Delta */}
           <div className="bg-white p-4 rounded-xl border border-brand-sand shadow-card-soft">
             <span className="text-[11px] font-mono text-brand-charcoalMuted uppercase font-semibold">
-              Compliance Delta
+              Compliance Adherence Delta
             </span>
             <div className="flex items-center gap-2 mt-1">
               <span
@@ -279,12 +335,16 @@ export const ComparisonView: React.FC = () => {
                     : 'bg-red-50 text-red-700 border border-red-200'
                 }`}
               >
-                {isPositiveDelta ? <TrendingUp className="w-3 h-3 mr-0.5" /> : <TrendingDown className="w-3 h-3 mr-0.5" />}
-                {isPositiveDelta ? 'Improved' : 'Regressed'}
+                {isPositiveDelta ? (
+                  <TrendingUp className="w-3 h-3 mr-0.5" />
+                ) : (
+                  <TrendingDown className="w-3 h-3 mr-0.5" />
+                )}
+                {isPositiveDelta ? 'More Compliant' : 'Risk Drift'}
               </span>
             </div>
             <div className="text-[11px] text-brand-charcoalMuted mt-1">
-              {metrics?.score_a}% (A) → {metrics?.score_b}% (B)
+              {metrics?.score_a}% (Slot A) → {metrics?.score_b}% (Slot B)
             </div>
           </div>
 
@@ -324,7 +384,7 @@ export const ComparisonView: React.FC = () => {
                     : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                 }`}
               >
-                {comparisonResult.new_risks.length > 0 ? 'Alert' : 'Zero New Risks'}
+                {comparisonResult.new_risks.length > 0 ? 'Action Needed' : 'Zero Infractions'}
               </span>
             </div>
             <div className="text-[11px] text-brand-charcoalMuted mt-1">Introduced in candidate</div>
@@ -360,7 +420,7 @@ export const ComparisonView: React.FC = () => {
         </div>
       )}
 
-      {/* Findings Delta Table & Tabs */}
+      {/* Comparative Violation Triage & Diff View */}
       {comparisonResult && (
         <div className="bg-white rounded-2xl border border-brand-sand shadow-card-soft overflow-hidden">
           <div className="px-6 py-4 border-b border-brand-sand bg-brand-cream/40 flex items-center justify-between flex-wrap gap-2">
@@ -369,7 +429,7 @@ export const ComparisonView: React.FC = () => {
               <h3 className="text-sm font-bold text-brand-charcoal">Comparative Violation Triage</h3>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 type="button"
                 onClick={() => setActiveTab('all')}
@@ -379,7 +439,7 @@ export const ComparisonView: React.FC = () => {
                     : 'text-brand-charcoalMuted hover:text-brand-charcoal'
                 }`}
               >
-                All Findings (
+                All Violations (
                 {comparisonResult.resolved_violations.length +
                   comparisonResult.new_risks.length +
                   (comparisonResult.persistent_violations?.length || 0)}
@@ -407,10 +467,25 @@ export const ComparisonView: React.FC = () => {
               >
                 New Risks ({comparisonResult.new_risks.length})
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('diff')}
+                className={`px-3 py-1 rounded-xl text-xs font-semibold transition-all flex items-center gap-1 ${
+                  activeTab === 'diff'
+                    ? 'bg-brand-ocean text-white'
+                    : 'text-brand-charcoal bg-brand-cream hover:bg-brand-sand/50'
+                }`}
+              >
+                <Diff className="w-3.5 h-3.5" />
+                <span>Text Diff</span>
+              </button>
             </div>
           </div>
 
           <div className="p-6 space-y-3">
+            {/* Visual Text Diff Tab */}
+            {activeTab === 'diff' && renderVisualTextDiff()}
+
             {/* Resolved Violations */}
             {(activeTab === 'all' || activeTab === 'resolved') &&
               comparisonResult.resolved_violations.map((f, i) => (
@@ -428,7 +503,7 @@ export const ComparisonView: React.FC = () => {
                       </span>
                     </div>
                     <p className="text-emerald-900 font-medium">
-                      Flagged in Reference: &quot;{f.flagged_text}&quot;
+                      Flagged in Baseline Slot A: &ldquo;{f.flagged_text}&rdquo;
                     </p>
                     <p className="text-emerald-700 text-[11px]">{f.explanation}</p>
                   </div>
@@ -456,7 +531,7 @@ export const ComparisonView: React.FC = () => {
                       </span>
                     </div>
                     <p className="text-red-900 font-medium">
-                      Introduced in Candidate: &quot;{f.flagged_text}&quot;
+                      Introduced in Candidate Slot B: &ldquo;{f.flagged_text}&rdquo;
                     </p>
                     <p className="text-red-700 text-[11px]">{f.explanation}</p>
                   </div>
@@ -481,7 +556,7 @@ export const ComparisonView: React.FC = () => {
                       </span>
                     </div>
                     <p className="text-brand-charcoal font-medium">
-                      Remaining in Both: &quot;{f.flagged_text}&quot;
+                      Remaining in Both: &ldquo;{f.flagged_text}&rdquo;
                     </p>
                     <p className="text-brand-charcoalMuted text-[11px]">{f.explanation}</p>
                   </div>
@@ -495,4 +570,3 @@ export const ComparisonView: React.FC = () => {
 };
 
 export default ComparisonView;
-

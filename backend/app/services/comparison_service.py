@@ -83,6 +83,8 @@ def compare_assets_or_texts(
     asset_id_b: Optional[Union[int, str]] = None,
     text_a: Optional[str] = None,
     text_b: Optional[str] = None,
+    slot_a: Optional[Any] = None,
+    slot_b: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """Performs dual comparison between Item A (reference) and Item B (revised)."""
     # 1. Fetch active brand rules for evaluation if raw texts are provided
@@ -97,7 +99,21 @@ def compare_assets_or_texts(
     findings_a: List[Dict[str, Any]] = []
     title_a = "Item A (Reference)"
 
-    if asset_id_a:
+    if slot_a:
+        slot_a_dict = slot_a if isinstance(slot_a, dict) else (slot_a.model_dump() if hasattr(slot_a, "model_dump") else {})
+        content_a = (slot_a_dict.get("text_content") or text_a or "").strip()
+        fn = slot_a_dict.get("file_name")
+        u = slot_a_dict.get("url")
+        if fn:
+            title_a = f"Slot A: {fn}"
+        elif u:
+            title_a = f"Slot A: {u[:35]}..."
+        else:
+            title_a = "Slot A: Baseline Copy"
+        if content_a:
+            raw_det_a = run_all_deterministic_checks(content=content_a, raw_html=None, images=[], prohibited_rules=active_rules)
+            findings_a = [serialize_finding(f) for f in raw_det_a]
+    elif asset_id_a:
         sub_a = db.query(ContentSubmission).filter(ContentSubmission.id == int(asset_id_a)).first()
         if sub_a:
             content_a = sub_a.raw_content or ""
@@ -114,7 +130,21 @@ def compare_assets_or_texts(
     findings_b: List[Dict[str, Any]] = []
     title_b = "Item B (Revised)"
 
-    if asset_id_b:
+    if slot_b:
+        slot_b_dict = slot_b if isinstance(slot_b, dict) else (slot_b.model_dump() if hasattr(slot_b, "model_dump") else {})
+        content_b = (slot_b_dict.get("text_content") or text_b or "").strip()
+        fn = slot_b_dict.get("file_name")
+        u = slot_b_dict.get("url")
+        if fn:
+            title_b = f"Slot B: {fn}"
+        elif u:
+            title_b = f"Slot B: {u[:35]}..."
+        else:
+            title_b = "Slot B: Revised Copy"
+        if content_b:
+            raw_det_b = run_all_deterministic_checks(content=content_b, raw_html=None, images=[], prohibited_rules=active_rules)
+            findings_b = [serialize_finding(f) for f in raw_det_b]
+    elif asset_id_b:
         sub_b = db.query(ContentSubmission).filter(ContentSubmission.id == int(asset_id_b)).first()
         if sub_b:
             content_b = sub_b.raw_content or ""

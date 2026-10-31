@@ -40,6 +40,7 @@ from app.schemas.review import (
     ReviewDecisionSubmissionRequest,
     WhatIfSimulateRequest,
     ReviewCompareRequest,
+    ScrapeUrlRequest,
 )
 from app.schemas.submission import ContentSubmissionResponse
 from app.models.transparency import AITransparencyLog
@@ -965,7 +966,9 @@ def compare_reviews(
             asset_id_b=payload.asset_id_b,
             text_a=payload.text_a,
             text_b=payload.text_b,
-            brand_id=payload.brand_id,
+            slot_a=payload.slot_a,
+            slot_b=payload.slot_b,
+            brand_id=payload.brand_id or 1,
         )
         return result
     except ValueError as ve:
@@ -976,4 +979,83 @@ def compare_reviews(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to compare assets: {str(e)}"
         )
+
+
+@router.post(
+    "/extract",
+    summary="Extract readable text and preview from an uploaded document or image",
+    description="Uploads PDF, Word (DOCX), PowerPoint (PPTX), plain text, or images (JPG, PNG, WEBP) to extract copy and visual preview."
+)
+async def extract_content_from_file(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Parses uploaded document or image file and extracts text for review studio & comparison slots."""
+    filename = file.filename or "upload"
+    file_bytes = await file.read()
+
+    extracted_text = ""
+    preview_url = ""
+    is_image = False
+
+    if any(filename.lower().endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".webp", ".gif")):
+        is_image = True
+        try:
+            _, _, img_meta = validate_and_decode_image(file_bytes)
+            preview_url = img_meta.get("preview_data_url", "")
+        except Exception as e:
+            logger.warning(f"Image decode preview failed: {e}")
+        extracted_text = await asyncio.to_thread(extract_from_image, file_bytes)
+    elif filename.lower().endswith(".pdf"):
+        try:
+            _, preview_url = await asyncio.to_thread(render_pdf_page_as_image, file_bytes, 0)
+        except Exception as render_ex:
+            logger.warning(f"PDF page rendering skipped: {render_ex}")
+        extracted_text = await asyncio.to_thread(extract_text_from_upload, file_bytes, filename)
+    else:
+        extracted_text = await asyncio.to_thread(extract_text_from_upload, file_bytes, filename)
+
+    word_count = len(extracted_text.split()) if extracted_text else 0
+
+    return {
+        "file_name": filename,
+        "file_size": len(file_bytes),
+        "is_image": is_image,
+        "extracted_text": extracted_text,
+        "preview_url": preview_url,
+        "word_count": word_count,
+        "message": f"Successfully extracted {word_count} words from '{filename}'."
+    }
+
+
+@router.post(
+    "/scrape-url",
+    summary="Scrape readable text from a public webpage URL",
+    description="Fetches public webpage with SSRF sandboxing and extracts readable text."
+)
+async def scrape_web_page_url(
+    payload: ScrapeUrlRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Scrapes public webpage URL and extracts copy with SSRF protection."""
+    url = (payload.url or "").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is required.")
+
+    try:
+        url_data = await asyncio.to_thread(extract_from_url, url)
+        text = url_data.get("text", "")
+        word_count = len(text.split()) if text else 0
+        return {
+            "url": url,
+            "title": url_data.get("title") or url,
+            "extracted_text": text,
+            "word_count": word_count,
+            "image_preview_url": url_data.get("image_preview_url"),
+            "status": "success",
+            "message": f"Successfully scraped {word_count} words from webpage."
+        }
+    except Exception as e:
+        logger.error(f"Error scraping URL '{url}': {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Failed to scrape webpage: {str(e)}")
 
