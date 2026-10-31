@@ -152,11 +152,38 @@ export interface GuidelineGap {
   created_at: string;
 }
 
+export interface ComparisonMatrixRow {
+  metric: string;
+  slot_a: any;
+  slot_b: any;
+  slot_c?: any;
+  best?: string | null;
+}
+
+export interface ComparisonResultItem {
+  slot_id: string;
+  title: string;
+  content: string;
+  score: number;
+  compliance_level: 'Clean' | 'Warning' | 'Critical' | string;
+  word_count: number;
+  violations_count: number;
+  pii_redactions_count: number;
+  tone_alignment: string;
+  findings: Finding[];
+}
+
 export interface DualComparisonResponse {
+  results?: ComparisonResultItem[];
+  matrix?: ComparisonMatrixRow[];
+  best_variant?: string;
+  best_variant_title?: string;
   title_a: string;
   title_b: string;
+  title_c?: string | null;
   content_a: string;
   content_b: string;
+  content_c?: string | null;
   diff_summary: string;
   score_delta: number;
   resolved_violations: Finding[];
@@ -165,30 +192,41 @@ export interface DualComparisonResponse {
   metrics: {
     score_a: number;
     score_b: number;
+    score_c?: number | null;
     score_delta: number;
     violations_count_a: number;
     violations_count_b: number;
+    violations_count_c?: number | null;
     resolved_count: number;
     new_risks_count: number;
     tone_alignment_a: string;
     tone_alignment_b: string;
+    tone_alignment_c?: string | null;
     contrast_ratio_a?: string;
     contrast_ratio_b?: string;
+    contrast_ratio_c?: string;
   };
   item_a: {
     title: string;
     score: number;
     violations_count: number;
     findings: Finding[];
-    char_count: number;
+    char_count?: number;
   };
   item_b: {
     title: string;
     score: number;
     violations_count: number;
     findings: Finding[];
-    char_count: number;
+    char_count?: number;
   };
+  item_c?: {
+    title: string;
+    score: number;
+    violations_count: number;
+    findings: Finding[];
+    char_count?: number;
+  } | null;
 }
 
 export interface ReviewDecisionRecord {

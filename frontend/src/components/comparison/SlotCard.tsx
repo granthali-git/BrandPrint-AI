@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Eye,
   AlertCircle,
+  RotateCcw,
 } from 'lucide-react';
 
 export interface SlotState {
@@ -24,12 +25,13 @@ export interface SlotState {
 }
 
 interface SlotCardProps {
-  slotId: 'A' | 'B';
+  slotId: 'A' | 'B' | 'C';
   roleLabel: string;
   state: SlotState;
   onChange: (updates: Partial<SlotState>) => void;
   onExtractFile: (file: File) => Promise<void>;
   onScrapeUrl: (url: string) => Promise<void>;
+  onReset?: () => void;
 }
 
 export const SlotCard: React.FC<SlotCardProps> = ({
@@ -39,13 +41,24 @@ export const SlotCard: React.FC<SlotCardProps> = ({
   onChange,
   onExtractFile,
   onScrapeUrl,
+  onReset,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isSlotA = slotId === 'A';
-  const badgeBg = isSlotA ? 'bg-brand-ocean text-white' : 'bg-brand-amber text-white';
-  const badgeBorder = isSlotA ? 'border-brand-oceanLight' : 'border-brand-amberHover';
+  const badgeBg =
+    slotId === 'A'
+      ? 'bg-brand-ocean text-white'
+      : slotId === 'B'
+      ? 'bg-brand-amber text-white'
+      : 'bg-[#0D5C75] text-white';
+
+  const badgeBorder =
+    slotId === 'A'
+      ? 'border-brand-oceanLight'
+      : slotId === 'B'
+      ? 'border-brand-amberHover'
+      : 'border-teal-400';
 
   const handleFileDrop = async (e: React.DragEvent) => {
     e.preventDefault();
@@ -100,49 +113,63 @@ export const SlotCard: React.FC<SlotCardProps> = ({
           </div>
         </div>
 
-        {/* 3-Tab Ingestion Selector */}
-        <div className="flex items-center p-1 rounded-xl bg-brand-cream border border-brand-sand text-xs font-semibold">
-          <button
-            type="button"
-            onClick={() => onChange({ sourceType: 'text' })}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all ${
-              state.sourceType === 'text'
-                ? 'bg-brand-ocean text-white shadow-2xs'
-                : 'text-brand-charcoalMuted hover:text-brand-charcoal'
-            }`}
-            title="Raw Copy / Text Input"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Raw Copy</span>
-          </button>
+        <div className="flex items-center gap-1.5">
+          {/* 3-Tab Ingestion Selector */}
+          <div className="flex items-center p-1 rounded-xl bg-brand-cream border border-brand-sand text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => onChange({ sourceType: 'text' })}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all ${
+                state.sourceType === 'text'
+                  ? 'bg-brand-ocean text-white shadow-2xs'
+                  : 'text-brand-charcoalMuted hover:text-brand-charcoal'
+              }`}
+              title="Raw Copy / Text Input"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Raw Copy</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => onChange({ sourceType: 'file' })}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all ${
-              state.sourceType === 'file'
-                ? 'bg-brand-ocean text-white shadow-2xs'
-                : 'text-brand-charcoalMuted hover:text-brand-charcoal'
-            }`}
-            title="Upload Document or Creative"
-          >
-            <UploadCloud className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Upload</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => onChange({ sourceType: 'file' })}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all ${
+                state.sourceType === 'file'
+                  ? 'bg-brand-ocean text-white shadow-2xs'
+                  : 'text-brand-charcoalMuted hover:text-brand-charcoal'
+              }`}
+              title="Upload Document or Creative"
+            >
+              <UploadCloud className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Upload</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => onChange({ sourceType: 'url' })}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all ${
-              state.sourceType === 'url'
-                ? 'bg-brand-ocean text-white shadow-2xs'
-                : 'text-brand-charcoalMuted hover:text-brand-charcoal'
-            }`}
-            title="Live Webpage URL"
-          >
-            <Globe className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Live URL</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => onChange({ sourceType: 'url' })}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all ${
+                state.sourceType === 'url'
+                  ? 'bg-brand-ocean text-white shadow-2xs'
+                  : 'text-brand-charcoalMuted hover:text-brand-charcoal'
+              }`}
+              title="Live Webpage URL"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Live URL</span>
+            </button>
+          </div>
+
+          {onReset && (
+            <button
+              type="button"
+              onClick={onReset}
+              className="p-1.5 rounded-lg text-brand-charcoalMuted hover:text-red-600 hover:bg-red-50 text-[10px] flex items-center gap-1 transition-colors border border-transparent hover:border-red-200 cursor-pointer"
+              title={`Reset Slot ${slotId}`}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span className="hidden xl:inline">Reset</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -375,3 +402,4 @@ export const SlotCard: React.FC<SlotCardProps> = ({
 };
 
 export default SlotCard;
+

@@ -950,31 +950,35 @@ def get_review_job_status(
 
 @router.post(
     "/compare",
-    summary="Dual Asset and Version Comparison",
-    description="Compares two creative assets or copy versions (strictly maximum 2 items) with score delta and diff analysis."
+    summary="Multi-Asset and Version Comparison (3-Way Slot Auditing)",
+    description="Compares up to 3 creative assets or copy versions (Slot A, Slot B, Slot C) with cross-asset differential analysis and optimal variant selection."
 )
-def compare_reviews(
+async def compare_reviews(
     payload: ReviewCompareRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Execute side-by-side dual content or version comparison."""
+    """Execute side-by-side multi-asset comparative audit across Slot A, Slot B, and Slot C."""
     try:
-        result = compare_assets_or_texts(
+        result = await asyncio.to_thread(
+            compare_assets_or_texts,
             db=db,
             asset_id_a=payload.asset_id_a,
             asset_id_b=payload.asset_id_b,
+            asset_id_c=payload.asset_id_c,
             text_a=payload.text_a,
             text_b=payload.text_b,
+            text_c=payload.text_c,
             slot_a=payload.slot_a,
             slot_b=payload.slot_b,
+            slot_c=payload.slot_c,
             brand_id=payload.brand_id or 1,
         )
         return result
     except ValueError as ve:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
     except Exception as e:
-        logger.error(f"Error executing dual comparison: {e}", exc_info=True)
+        logger.error(f"Error executing multi-asset comparison: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to compare assets: {str(e)}"

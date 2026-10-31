@@ -51,11 +51,18 @@ class CompareSlotPayload(BaseModel):
 class ReviewCompareRequest(BaseModel):
     asset_id_a: Optional[Union[str, int]] = None
     asset_id_b: Optional[Union[str, int]] = None
+    asset_id_c: Optional[Union[str, int]] = None
     text_a: Optional[str] = None
     text_b: Optional[str] = None
+    text_c: Optional[str] = None
     slot_a: Optional[CompareSlotPayload] = None
     slot_b: Optional[CompareSlotPayload] = None
+    slot_c: Optional[CompareSlotPayload] = None
     brand_id: Optional[Union[str, int]] = 1
+
+
+# Alias for 3-way multi-asset comparison
+ComparisonRequest = ReviewCompareRequest
 
 
 class ScrapeUrlRequest(BaseModel):
