@@ -109,6 +109,86 @@ export interface ReviewResponse {
   is_image_asset?: boolean;
   brand_id?: number | string;
   status?: SubmissionStatus;
+  ai_transparency?: AITransparencyMeta | null;
+}
+
+export interface AITransparencyLog {
+  id: number;
+  timestamp: string;
+  service_provider: string;
+  model_name: string;
+  redaction_applied: boolean;
+  redactions_count: number;
+  redacted_fields: string[];
+  tokens_or_bytes_sent: number;
+  prompt_hash: string;
+  user_id?: number | null;
+  submission_id?: number | null;
+}
+
+export interface AITransparencyMeta {
+  id?: number | null;
+  service_provider: string;
+  model_name: string;
+  redaction_applied: boolean;
+  redactions_count: number;
+  redacted_fields: string[];
+  tokens_or_bytes_sent: number;
+  prompt_hash: string;
+  is_local: boolean;
+  badge_text: string;
+}
+
+export interface GuidelineGap {
+  id: number;
+  brand_id: number;
+  submission_id?: number | null;
+  claim: string;
+  gap_type: 'UNCOVERED_TOPIC' | 'AMBIGUOUS_RULE';
+  severity: 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  suggested_rule_proposal: string;
+  status: 'PENDING_DECISION' | 'ADOPTED' | 'DISMISSED' | 'REVISED';
+  resolution_notes?: string | null;
+  created_at: string;
+}
+
+export interface DualComparisonResponse {
+  title_a: string;
+  title_b: string;
+  content_a: string;
+  content_b: string;
+  diff_summary: string;
+  score_delta: number;
+  resolved_violations: Finding[];
+  new_risks: Finding[];
+  persistent_violations?: Finding[];
+  metrics: {
+    score_a: number;
+    score_b: number;
+    score_delta: number;
+    violations_count_a: number;
+    violations_count_b: number;
+    resolved_count: number;
+    new_risks_count: number;
+    tone_alignment_a: string;
+    tone_alignment_b: string;
+    contrast_ratio_a?: string;
+    contrast_ratio_b?: string;
+  };
+  item_a: {
+    title: string;
+    score: number;
+    violations_count: number;
+    findings: Finding[];
+    char_count: number;
+  };
+  item_b: {
+    title: string;
+    score: number;
+    violations_count: number;
+    findings: Finding[];
+    char_count: number;
+  };
 }
 
 export interface ReviewDecisionRecord {

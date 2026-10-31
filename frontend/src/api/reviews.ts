@@ -169,6 +169,20 @@ export const reviewsApi = {
     const response = await apiClient.get<any>(`/api/reviews/${submissionId}/status`);
     return response.data;
   },
+
+  /**
+   * Dual asset and version comparison (strictly capped at max 2 items)
+   */
+  compareReviews: async (payload: {
+    asset_id_a?: string | number;
+    asset_id_b?: string | number;
+    text_a?: string;
+    text_b?: string;
+    brand_id?: number | string;
+  }): Promise<any> => {
+    const response = await apiClient.post<any>('/api/reviews/compare', payload);
+    return response.data;
+  },
 };
 
 export default reviewsApi;

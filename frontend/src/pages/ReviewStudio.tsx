@@ -39,10 +39,12 @@ import {
 } from '../types';
 import { WhatIfSimulator } from '../components/WhatIfSimulator';
 import { FindingCard } from '../components/FindingCard';
+import { AITransparencyModal } from '../components/common/AITransparencyModal';
 
 export const ReviewStudio: React.FC = () => {
   const { currentBrand } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const submissionIdParam = searchParams.get('id');
 
   // Multi-Format Input State
@@ -789,7 +791,20 @@ export const ReviewStudio: React.FC = () => {
         </div>
 
         {/* Human Governance Actions Bar */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* AI Transparency & Guardrail Badge */}
+          {reviewData?.ai_transparency && (
+            <button
+              type="button"
+              onClick={() => setIsAuditModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-brand-cream border border-brand-sand hover:border-brand-amber/50 text-xs font-semibold text-brand-charcoal transition-all shadow-card-soft cursor-pointer"
+              title="Click to view AI disclosure, cryptographic prompt digest and PII redactions"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-brand-amber" />
+              <span>{reviewData.ai_transparency.badge_text}</span>
+            </button>
+          )}
+
           <button
             onClick={handleOpenCertificate}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand-ocean hover:bg-brand-oceanDark text-white border border-brand-oceanLight text-xs font-bold transition-all shadow-card-elevated active:scale-95 cursor-pointer"
@@ -1754,6 +1769,9 @@ export const ReviewStudio: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* AI Transparency Audit Modal */}
+      <AITransparencyModal isOpen={isAuditModalOpen} onClose={() => setIsAuditModalOpen(false)} />
     </div>
   );
 };

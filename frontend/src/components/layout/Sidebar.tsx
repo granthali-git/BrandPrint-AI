@@ -5,6 +5,7 @@ import {
   ScanSearch,
   BookOpenCheck,
   Scale,
+  Columns,
   ShieldAlert,
   Database,
   ExternalLink,
@@ -66,6 +67,12 @@ export const Sidebar: React.FC = () => {
       path: '/guidelines',
       icon: BookOpenCheck,
       badge: null,
+    },
+    {
+      name: 'Asset Comparison',
+      path: '/compare',
+      icon: Columns,
+      badge: 'Dual v2',
     },
     {
       name: 'Audit & Contradictions',

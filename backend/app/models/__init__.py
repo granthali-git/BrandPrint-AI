@@ -7,6 +7,7 @@ from app.models.submission import ContentSubmission, ContentType, SubmissionStat
 from app.models.finding import Finding, SeverityLevel, UserAction
 from app.models.review import ReviewDecision, ReviewDecisionType
 from app.models.audit import PolicyAudit
+from app.models.transparency import AITransparencyLog, GuidelineGap
 
 __all__ = [
     "Base",
@@ -24,5 +25,7 @@ __all__ = [
     "ReviewDecision",
     "ReviewDecisionType",
     "PolicyAudit",
+    "AITransparencyLog",
+    "GuidelineGap",
 ]
 

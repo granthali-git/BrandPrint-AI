@@ -54,6 +54,7 @@ export const Dashboard: React.FC = () => {
   const [activeGuidelinesCount, setActiveGuidelinesCount] = useState<number>(0);
   const [recentSubmissions, setRecentSubmissions] = useState<any[]>([]);
   const [lastSyncedTime, setLastSyncedTime] = useState<string>('Just now');
+  const [pendingGapsCount, setPendingGapsCount] = useState<number>(0);
 
   // Interactive Filters
   const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | 'all'>('30d');
@@ -120,10 +121,11 @@ export const Dashboard: React.FC = () => {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const [summaryRes, rulesRes, subsRes] = await Promise.allSettled([
+      const [summaryRes, rulesRes, subsRes, gapsRes] = await Promise.allSettled([
         dashboardApi.getSummary(currentBrand.id),
         guidelinesApi.list(currentBrand.id),
         reviewsApi.list(currentBrand.id, 25),
+        guidelinesApi.getGaps(currentBrand.id, 'PENDING_DECISION'),
       ]);
 
       if (summaryRes.status === 'fulfilled' && summaryRes.value) {
@@ -134,6 +136,12 @@ export const Dashboard: React.FC = () => {
       }
       if (subsRes.status === 'fulfilled' && subsRes.value) {
         setRecentSubmissions(subsRes.value);
+      }
+      if (gapsRes.status === 'fulfilled' && gapsRes.value) {
+        const gapList = Array.isArray(gapsRes.value)
+          ? gapsRes.value
+          : gapsRes.value?.gaps || gapsRes.value?.proposed_rules || [];
+        setPendingGapsCount(gapList.length);
       }
       setLastSyncedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err) {
@@ -607,6 +615,36 @@ export const Dashboard: React.FC = () => {
             <ArrowUpRight className="w-3.5 h-3.5" />
           </button>
         </div>
+      </div>
+
+      {/* Guideline Gaps Awaiting Triage Alert Banner */}
+      <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-brand-amber/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-card-soft">
+        <div className="flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-brand-amber text-white flex items-center justify-center font-bold shadow-sm shrink-0">
+            <Sparkles className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-900">
+                Autonomous Guideline Gaps & Ambiguity Alerts
+              </h3>
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-brand-amber text-white shadow-xs animate-pulse">
+                {pendingGapsCount > 0 ? `${pendingGapsCount} Awaiting Triage` : 'Surveillance Active'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Uncovered marketing claims and subjective rules detected during reviews. Triage proposals to codify new active rules.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => navigate('/guidelines?tab=gaps')}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-ocean hover:bg-brand-oceanDark text-white text-xs font-semibold shadow-sm transition-all active:scale-95 shrink-0 cursor-pointer"
+        >
+          <span>Open Policy Gap Triage Hub</span>
+          <ChevronRight className="w-3.5 h-3.5 text-brand-amber" />
+        </button>
       </div>
 
       {/* 3. Visual Charts Grid (Using real dynamic telemetry from API) */}

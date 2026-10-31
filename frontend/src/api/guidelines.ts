@@ -156,6 +156,33 @@ export const guidelinesApi = {
     const response = await apiClient.post('/api/guidelines/contradictions/resolve', payload);
     return response.data;
   },
+
+  /**
+   * List detected guideline gaps and ambiguous policies awaiting triage
+   */
+  getGaps: async (brandId?: number | string, status?: string): Promise<any> => {
+    const params: Record<string, any> = {};
+    if (brandId) params.brand_id = brandId;
+    if (status) params.status = status;
+    const response = await apiClient.get('/api/guidelines/gaps', { params });
+    return response.data;
+  },
+
+  /**
+   * Managerial triage for a detected guideline gap (Adopt, Revise, Dismiss)
+   */
+  triageGap: async (
+    gapId: number | string,
+    payload: {
+      action: 'ACCEPT_PROPOSAL' | 'DISMISS' | 'REVISE' | string;
+      custom_rule_text?: string;
+      custom_title?: string;
+      category?: string;
+    }
+  ): Promise<any> => {
+    const response = await apiClient.post(`/api/guidelines/gaps/${gapId}/triage`, payload);
+    return response.data;
+  },
 };
 
 export default guidelinesApi;

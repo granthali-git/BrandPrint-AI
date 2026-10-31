@@ -41,3 +41,12 @@ class WhatIfSimulateRequest(BaseModel):
     draft_rules: Optional[list[dict]] = None
 
 
+class ReviewCompareRequest(BaseModel):
+    asset_id_a: Optional[Union[str, int]] = None
+    asset_id_b: Optional[Union[str, int]] = None
+    text_a: Optional[str] = None
+    text_b: Optional[str] = None
+    brand_id: Optional[Union[str, int]] = 1
+
+
+

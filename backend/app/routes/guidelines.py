@@ -29,6 +29,7 @@ from app.schemas.guideline import (
     UrlIngestRequest,
     BulkRulesSaveRequest,
     GuidelineIngestResponse,
+    GapTriageRequest,
 )
 from app.services.document_parser import (
     extract_text_from_upload,
@@ -939,6 +940,126 @@ async def resolve_policy_contradiction(
         "timestamp": timestamp,
         "message": f"Contradiction {conflict_id} successfully signed off via {strategy} by {approver_role} ({approver_name})."
     }
+
+
+# ==============================================================================
+# SECTION: GUIDELINE GAPS & GOVERNANCE TRIAGE
+# ==============================================================================
+
+@router.get(
+    "/gaps",
+    summary="List detected guideline gaps and ambiguous policies"
+)
+def list_guideline_gaps(
+    brand_id: Optional[int] = None,
+    status: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    from app.models.transparency import GuidelineGap
+    query = db.query(GuidelineGap)
+    b_id = to_brand_id(brand_id) if brand_id else 1
+    if brand_id:
+        query = query.filter(GuidelineGap.brand_id == b_id)
+    if status:
+        query = query.filter(GuidelineGap.status == status.upper())
+    else:
+        query = query.filter(GuidelineGap.status == "PENDING_DECISION")
+
+    records = query.order_by(GuidelineGap.created_at.desc()).all()
+    gaps_list = [
+        {
+            "id": r.id,
+            "brand_id": r.brand_id,
+            "submission_id": r.submission_id,
+            "claim": r.claim,
+            "gap_type": r.gap_type,
+            "severity": r.severity,
+            "suggested_rule_proposal": r.suggested_rule_proposal,
+            "status": r.status,
+            "resolution_notes": r.resolution_notes,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "proposed_title": f"Formal Rule on {r.claim[:35]}",
+            "proposed_rule_text": r.suggested_rule_proposal,
+            "category": "tone",
+            "gap_reason": f"Identified gap in coverage for '{r.claim}'",
+            "source_finding_count": 1,
+        }
+        for r in records
+    ]
+
+    # If no records exist in DB yet, generate heuristic/findings gaps for brand
+    if not gaps_list and brand_id:
+        from app.services.gap_detector import detect_guideline_gaps
+        gaps_list = detect_guideline_gaps(brand_id=b_id, db=db)
+
+    return {
+        "brand_id": b_id,
+        "candidate_rules_count": len(gaps_list),
+        "proposed_rules": gaps_list,
+        "gaps": gaps_list,
+        "items": gaps_list,
+    }
+
+
+@router.post(
+    "/gaps/{gap_id}/triage",
+    summary="Triage a guideline gap (Adopt as rule, edit, or dismiss)"
+)
+def triage_gap_decision(
+    gap_id: int,
+    payload: GapTriageRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    from app.services.gap_detector import triage_guideline_gap
+    try:
+        result = triage_guideline_gap(
+            db=db,
+            gap_id=gap_id,
+            action=payload.action,
+            custom_rule_text=payload.custom_rule_text,
+            custom_title=payload.custom_title,
+            category=payload.category,
+        )
+        return result
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to triage gap: {e}")
+
+
+@router.post(
+    "/gaps/scan",
+    summary="Scan content or active guidelines for policy gaps"
+)
+def scan_guideline_gaps_endpoint(
+    brand_id: int = Query(...),
+    content: Optional[str] = Body(None, embed=True),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    from app.services.gap_detector import scan_and_record_guideline_gaps
+    target_b_id = to_brand_id(brand_id)
+    active_rules = (
+        db.query(GuidelineRule)
+        .filter(GuidelineRule.brand_id == target_b_id, GuidelineRule.is_active == True)
+        .all()
+    )
+    scan_text = content or " ".join([r.rule_text for r in active_rules])
+    gaps = scan_and_record_guideline_gaps(
+        content=scan_text,
+        active_rules=active_rules,
+        brand_id=target_b_id,
+        db=db
+    )
+    return {
+        "brand_id": target_b_id,
+        "gaps_detected_count": len(gaps),
+        "gaps": gaps,
+        "message": f"Identified {len(gaps)} guideline gaps / policy proposals."
+    }
+
 
 
 

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
+import { AITransparencyModal } from '../common/AITransparencyModal';
 
 export const TopBar: React.FC = () => {
   const { currentBrand, setCurrentBrand, availableBrands, currentUser, openNewReview } = useApp();
@@ -22,6 +23,7 @@ export const TopBar: React.FC = () => {
 
   const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const brandMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -151,7 +153,17 @@ export const TopBar: React.FC = () => {
       </div>
 
       {/* Right: Primary Warm Amber CTA Button & User Profile Pill */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        {/* AI Transparency Audit Button */}
+        <button
+          onClick={() => setIsAuditModalOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-brand-sand hover:border-brand-ocean/40 text-xs font-semibold text-brand-charcoal transition-all shadow-card-soft cursor-pointer"
+          title="Open AI Model Disclosure & Audit Log"
+        >
+          <ShieldCheck className="w-3.5 h-3.5 text-brand-ocean" />
+          <span className="hidden sm:inline">AI Audit Log</span>
+        </button>
+
         {/* Primary CTA Button: Warm Amber */}
         <button
           onClick={openNewReview}
@@ -274,6 +286,9 @@ export const TopBar: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* AI Transparency Audit Modal */}
+      <AITransparencyModal isOpen={isAuditModalOpen} onClose={() => setIsAuditModalOpen(false)} />
     </header>
   );
 };

@@ -65,3 +65,26 @@ class GuidelineIngestResponse(BaseModel):
     message: str
 
 
+class GapTriageRequest(BaseModel):
+    action: str  # "ACCEPT_PROPOSAL" | "DISMISS" | "REVISE"
+    custom_rule_text: Optional[str] = None
+    custom_title: Optional[str] = None
+    category: Optional[str] = None
+
+
+class GuidelineGapResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    brand_id: int
+    submission_id: Optional[int] = None
+    claim: str
+    gap_type: str
+    severity: str
+    suggested_rule_proposal: str
+    status: str
+    resolution_notes: Optional[str] = None
+    created_at: datetime
+
+
+

@@ -38,9 +38,14 @@ from app.schemas.finding import FindingActionRequest, FindingPatchRequest, Findi
 from app.schemas.review import (
     ReviewDecisionResponse,
     ReviewDecisionSubmissionRequest,
-    WhatIfSimulateRequest
+    WhatIfSimulateRequest,
+    ReviewCompareRequest,
 )
 from app.schemas.submission import ContentSubmissionResponse
+from app.models.transparency import AITransparencyLog
+from app.services.ai_gateway import route_ai_compliance_analysis
+from app.services.gap_detector import scan_and_record_guideline_gaps
+from app.services.comparison_service import compare_assets_or_texts
 from app.services.ai_service import analyze_content_against_rules, generate_enterprise_fix_variations
 from app.services.deterministic_checks import run_all_deterministic_checks
 from app.services.document_parser import extract_text_from_upload
@@ -89,6 +94,8 @@ async def create_content_review(
     raw_content: Optional[str] = Form(None),
     url: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
+    ai_provider: Optional[str] = Form(None),
+    mask_pii: Optional[bool] = Form(True),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
@@ -102,6 +109,10 @@ async def create_content_review(
         url = body.get("url")
         c_type = body.get("content_type", "text")
         content_type = ContentType(c_type) if c_type in ContentType.__members__ else ContentType.text
+        if body.get("ai_provider"):
+            ai_provider = body.get("ai_provider")
+        if body.get("mask_pii") is not None:
+            mask_pii = bool(body.get("mask_pii"))
 
     if not brand_id:
         raise HTTPException(
@@ -296,14 +307,23 @@ async def create_content_review(
     # 7. Dual AI Compliance Analysis (for text copy)
     t_ai_start = time.time()
     grounded_ai_findings: List[Dict[str, Any]] = []
+    ai_transparency_payload: Optional[Dict[str, Any]] = None
     if extracted_text and not extracted_text.startswith("[Visual Poster Creative") and not extracted_text.startswith("[Visual PDF Asset"):
         # Safely bound prompt content length to 6,000 characters to prevent model timeouts
         eval_content = extracted_text[:6000] if len(extracted_text) > 6000 else extracted_text
-        raw_ai_findings = await asyncio.to_thread(
-            analyze_content_against_rules,
+        ai_res = await asyncio.to_thread(
+            route_ai_compliance_analysis,
             content=eval_content,
-            relevant_rules=relevant_rules
+            relevant_rules=relevant_rules,
+            preferred_provider=ai_provider or "google_gemini",
+            mask_pii=mask_pii if mask_pii is not None else True,
+            user_id=current_user.id if current_user else None,
+            submission_id=None,
+            db=db,
         )
+        raw_ai_findings = ai_res.get("findings", [])
+        ai_transparency_payload = ai_res.get("transparency")
+
         grounded_ai_findings = validate_findings(
             findings=raw_ai_findings,
             candidate_rules=all_brand_rules,
@@ -385,6 +405,28 @@ async def create_content_review(
     for sf in saved_findings:
         db.refresh(sf)
 
+    # Link AI transparency log to persisted submission
+    if ai_transparency_payload and ai_transparency_payload.get("id"):
+        try:
+            t_log = db.query(AITransparencyLog).filter(AITransparencyLog.id == ai_transparency_payload["id"]).first()
+            if t_log:
+                t_log.submission_id = submission.id
+                db.commit()
+        except Exception as t_err:
+            logger.debug(f"Could not link transparency log to submission: {t_err}")
+
+    # Autonomous Guideline Gap & Ambiguity Detection
+    try:
+        scan_and_record_guideline_gaps(
+            content=extracted_text,
+            active_rules=all_brand_rules,
+            brand_id=target_brand_id,
+            submission_id=submission.id,
+            db=db
+        )
+    except Exception as gap_err:
+        logger.warning(f"Autonomous guideline gap scan error: {gap_err}")
+
     stage_timings["db_persistence_ms"] = round((time.time() - t_db_start) * 1000, 1)
     stage_timings["total_pipeline_ms"] = round((time.time() - t_start) * 1000, 1)
     logger.info(
@@ -431,6 +473,7 @@ async def create_content_review(
         "visual_analysis_message": visual_message if is_image_asset else None,
         "is_image_asset": is_image_asset,
         "stage_timings": stage_timings,
+        "ai_transparency": ai_transparency_payload,
     }
 
 
@@ -527,6 +570,42 @@ def get_review_details(
                 fr.strategic_tip = tip
         enriched_findings.append(fr)
 
+    # Query recent AI transparency log for this submission if available
+    transparency_log = (
+        db.query(AITransparencyLog)
+        .filter(AITransparencyLog.submission_id == target_id)
+        .order_by(AITransparencyLog.timestamp.desc())
+        .first()
+    )
+    ai_transparency_data = None
+    if transparency_log:
+        is_local = "Local" in (transparency_log.service_provider or "") or "Ollama" in (transparency_log.service_provider or "")
+        redacted_fields = []
+        if transparency_log.redacted_fields:
+            try:
+                import json
+                redacted_fields = json.loads(transparency_log.redacted_fields)
+            except Exception:
+                redacted_fields = []
+        ai_transparency_data = {
+            "id": transparency_log.id,
+            "service_provider": transparency_log.service_provider,
+            "model_name": transparency_log.model_name,
+            "redaction_applied": transparency_log.redaction_applied,
+            "redactions_count": transparency_log.redactions_count,
+            "redacted_fields": redacted_fields,
+            "tokens_or_bytes_sent": transparency_log.tokens_or_bytes_sent,
+            "prompt_hash": transparency_log.prompt_hash,
+            "is_local": is_local,
+            "badge_text": (
+                f"🔒 Processed by Local Ollama (Zero External Egress)"
+                if is_local
+                else f"⚡ Processed by {transparency_log.service_provider} • {transparency_log.redactions_count} Redactions Applied"
+                if transparency_log.redactions_count > 0
+                else f"⚡ Processed by {transparency_log.service_provider}"
+            ),
+        }
+
     return {
         "submission": ContentSubmissionResponse.model_validate(submission),
         "findings": enriched_findings,
@@ -536,7 +615,8 @@ def get_review_details(
         "image_preview_url": getattr(submission, "image_preview_url", None),
         "visual_analysis_status": getattr(submission, "visual_analysis_status", None),
         "visual_analysis_message": getattr(submission, "visual_analysis_message", None),
-        "extracted_text": submission.raw_content
+        "extracted_text": submission.raw_content,
+        "ai_transparency": ai_transparency_data,
     }
 
 
@@ -865,4 +945,35 @@ def get_review_job_status(
         "findings_count": findings_count,
         "total_findings": findings_count
     }
+
+
+@router.post(
+    "/compare",
+    summary="Dual Asset and Version Comparison",
+    description="Compares two creative assets or copy versions (strictly maximum 2 items) with score delta and diff analysis."
+)
+def compare_reviews(
+    payload: ReviewCompareRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Execute side-by-side dual content or version comparison."""
+    try:
+        result = compare_assets_or_texts(
+            db=db,
+            asset_id_a=payload.asset_id_a,
+            asset_id_b=payload.asset_id_b,
+            text_a=payload.text_a,
+            text_b=payload.text_b,
+            brand_id=payload.brand_id,
+        )
+        return result
+    except ValueError as ve:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error executing dual comparison: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to compare assets: {str(e)}"
+        )
 

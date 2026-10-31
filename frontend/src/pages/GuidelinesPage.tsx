@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   BookOpen,
   Plus,
@@ -27,9 +28,14 @@ import {
 import { useApp } from '../context/AppContext';
 import { guidelinesApi } from '../api/guidelines';
 import { GuidelineRule, RuleCategory } from '../types';
+import { PolicyGapTriageHub } from '../components/guidelines/PolicyGapTriageHub';
 
 export const GuidelinesPage: React.FC = () => {
   const { currentBrand } = useApp();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeMainTab, setActiveMainTab] = useState<'rules' | 'gaps'>(
+    searchParams.get('tab') === 'gaps' ? 'gaps' : 'rules'
+  );
   const [rules, setRules] = useState<GuidelineRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -161,6 +167,13 @@ export const GuidelinesPage: React.FC = () => {
   useEffect(() => {
     fetchGuidelines();
   }, [currentBrand.id]);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'gaps') {
+      setActiveMainTab('gaps');
+    }
+  }, [searchParams]);
 
   // Handle Document & Image Upload & Rule Extraction
   const handleUploadDocumentSubmit = async (e?: React.FormEvent) => {
@@ -501,7 +514,46 @@ export const GuidelinesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Unified 3-Tab Ingestion Hub (Deep Ocean Teal & Warm Amber) */}
+      {/* Top Section Switcher: Active Codex vs Policy Gap Triage */}
+      <div className="flex items-center gap-4 border-b border-brand-sand pt-1 pb-1">
+        <button
+          type="button"
+          onClick={() => {
+            setActiveMainTab('rules');
+            setSearchParams({});
+          }}
+          className={`flex items-center gap-2 pb-2.5 px-1 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+            activeMainTab === 'rules'
+              ? 'border-brand-ocean text-brand-ocean'
+              : 'border-transparent text-brand-charcoalMuted hover:text-brand-charcoal'
+          }`}
+        >
+          <BookOpen className="w-4 h-4" />
+          <span>Active Guidelines Codex ({rules.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveMainTab('gaps');
+            setSearchParams({ tab: 'gaps' });
+          }}
+          className={`flex items-center gap-2 pb-2.5 px-1 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+            activeMainTab === 'gaps'
+              ? 'border-brand-amber text-brand-amberHover'
+              : 'border-transparent text-brand-charcoalMuted hover:text-brand-charcoal'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-brand-amber" />
+          <span>Policy Gap Triage Hub</span>
+        </button>
+      </div>
+
+      {activeMainTab === 'gaps' ? (
+        <PolicyGapTriageHub brandId={currentBrand.id} onRuleAdopted={fetchGuidelines} />
+      ) : (
+        <>
+          {/* 2. Unified 3-Tab Ingestion Hub (Deep Ocean Teal & Warm Amber) */}
       {isIngestionOpen && (
         <div className="bg-white rounded-2xl p-6 border-2 border-brand-ocean/30 shadow-card-elevated space-y-6 animate-in slide-in-from-top-4 duration-200">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-brand-sand">
@@ -1492,6 +1544,8 @@ export const GuidelinesPage: React.FC = () => {
             );
           })}
         </div>
+      )}
+        </>
       )}
     </div>
   );
