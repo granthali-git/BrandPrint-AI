@@ -90,20 +90,34 @@ export const SlotCard: React.FC<SlotCardProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl p-5 border border-brand-sand shadow-card-soft flex flex-col space-y-4">
+    <div className="relative bg-white rounded-2xl p-5 border border-brand-sand shadow-card-soft flex flex-col space-y-4">
+      {/* Pinned Absolute Top-Right Reset Button */}
+      {onReset && (
+        <button
+          type="button"
+          onClick={onReset}
+          className="absolute top-4 right-4 flex items-center gap-1 text-xs text-slate-400 hover:text-rose-600 transition-colors py-1 px-2 rounded-lg hover:bg-rose-50 cursor-pointer z-10"
+          title={`Reset Slot ${slotId}`}
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          <span className="font-medium">Reset</span>
+        </button>
+      )}
+
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-brand-sand pb-3">
-        <div className="flex items-center gap-2.5">
+      <div className="border-b border-brand-sand pb-3 space-y-3">
+        {/* Row 1: Slot Badge + Title & Subtitle with pr-20 to never collide with top-right Reset */}
+        <div className="flex items-center gap-2.5 pr-20">
           <span
-            className={`w-7 h-7 rounded-xl ${badgeBg} border ${badgeBorder} text-xs font-mono font-bold flex items-center justify-center shadow-2xs`}
+            className={`w-7 h-7 rounded-xl ${badgeBg} border ${badgeBorder} text-xs font-mono font-bold flex items-center justify-center shadow-2xs shrink-0`}
           >
             {slotId}
           </span>
-          <div>
-            <h2 className="text-sm font-bold text-brand-charcoal">
+          <div className="min-w-0">
+            <h2 className="text-sm font-bold text-brand-charcoal truncate">
               Slot {slotId} ({roleLabel})
             </h2>
-            <span className="text-[10px] font-mono text-brand-charcoalMuted">
+            <span className="text-[10px] font-mono text-brand-charcoalMuted block truncate">
               {state.sourceType === 'text'
                 ? 'Direct Copy Input'
                 : state.sourceType === 'file'
@@ -113,63 +127,49 @@ export const SlotCard: React.FC<SlotCardProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
-          {/* 3-Tab Ingestion Selector */}
-          <div className="flex items-center p-1 rounded-xl bg-brand-cream border border-brand-sand text-xs font-semibold">
-            <button
-              type="button"
-              onClick={() => onChange({ sourceType: 'text' })}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all ${
-                state.sourceType === 'text'
-                  ? 'bg-brand-ocean text-white shadow-2xs'
-                  : 'text-brand-charcoalMuted hover:text-brand-charcoal'
-              }`}
-              title="Raw Copy / Text Input"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Raw Copy</span>
-            </button>
+        {/* Row 2: 3-Tab Ingestion Selector */}
+        <div className="flex items-center p-1 rounded-xl bg-brand-cream border border-brand-sand text-xs font-semibold w-full">
+          <button
+            type="button"
+            onClick={() => onChange({ sourceType: 'text' })}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg transition-all text-xs cursor-pointer ${
+              state.sourceType === 'text'
+                ? 'bg-brand-ocean text-white shadow-2xs font-bold'
+                : 'text-brand-charcoalMuted hover:text-brand-charcoal'
+            }`}
+            title="Raw Copy / Text Input"
+          >
+            <FileText className="w-3.5 h-3.5 shrink-0" />
+            <span>Raw Copy</span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => onChange({ sourceType: 'file' })}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all ${
-                state.sourceType === 'file'
-                  ? 'bg-brand-ocean text-white shadow-2xs'
-                  : 'text-brand-charcoalMuted hover:text-brand-charcoal'
-              }`}
-              title="Upload Document or Creative"
-            >
-              <UploadCloud className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Upload</span>
-            </button>
+          <button
+            type="button"
+            onClick={() => onChange({ sourceType: 'file' })}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg transition-all text-xs cursor-pointer ${
+              state.sourceType === 'file'
+                ? 'bg-brand-ocean text-white shadow-2xs font-bold'
+                : 'text-brand-charcoalMuted hover:text-brand-charcoal'
+            }`}
+            title="Upload Document or Creative"
+          >
+            <UploadCloud className="w-3.5 h-3.5 shrink-0" />
+            <span>Upload</span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => onChange({ sourceType: 'url' })}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all ${
-                state.sourceType === 'url'
-                  ? 'bg-brand-ocean text-white shadow-2xs'
-                  : 'text-brand-charcoalMuted hover:text-brand-charcoal'
-              }`}
-              title="Live Webpage URL"
-            >
-              <Globe className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Live URL</span>
-            </button>
-          </div>
-
-          {onReset && (
-            <button
-              type="button"
-              onClick={onReset}
-              className="p-1.5 rounded-lg text-brand-charcoalMuted hover:text-red-600 hover:bg-red-50 text-[10px] flex items-center gap-1 transition-colors border border-transparent hover:border-red-200 cursor-pointer"
-              title={`Reset Slot ${slotId}`}
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span className="hidden xl:inline">Reset</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => onChange({ sourceType: 'url' })}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg transition-all text-xs cursor-pointer ${
+              state.sourceType === 'url'
+                ? 'bg-brand-ocean text-white shadow-2xs font-bold'
+                : 'text-brand-charcoalMuted hover:text-brand-charcoal'
+            }`}
+            title="Live Webpage URL"
+          >
+            <Globe className="w-3.5 h-3.5 shrink-0" />
+            <span>Live URL</span>
+          </button>
         </div>
       </div>
 
