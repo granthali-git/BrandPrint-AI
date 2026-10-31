@@ -25,3 +25,4 @@ class AuditHistory(Base):
 
     def __repr__(self) -> str:
         return f"<AuditHistory id={self.id} type={self.session_type} title={self.title[:30]}>"
+

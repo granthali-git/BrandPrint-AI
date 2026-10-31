@@ -392,22 +392,29 @@ export const HistoryView: React.FC = () => {
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-4">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
           {/* Search Box */}
-          <div className="relative flex-1 max-w-lg">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <div className="relative w-full max-w-xl">
+            {/* Search Icon pinned left, vertically centered, non-interactive pointer */}
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <Search className="w-4 h-4" />
+            </div>
+
+            {/* Search Input with pl-10 so text starts strictly after the icon */}
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search past audits, campaigns, or comparisons..."
-              className="w-full pl-9.5 pr-8 py-2.5 rounded-xl border border-brand-sand bg-white text-sm text-brand-charcoal placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-ocean/30 focus:border-brand-ocean transition-all"
+              className="w-full pl-10 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700 transition-all shadow-sm"
             />
+
+            {/* Optional Clear Button if query is typed */}
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             )}
           </div>
@@ -625,3 +632,4 @@ export const HistoryView: React.FC = () => {
 };
 
 export default HistoryView;
+

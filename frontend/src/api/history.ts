@@ -50,3 +50,4 @@ export const historyApi = {
     return res.data;
   },
 };
+
