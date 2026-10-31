@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import {
   Scale,
   AlertTriangle,
@@ -22,10 +23,15 @@ import {
 import { useApp } from '../context/AppContext';
 import { guidelinesApi } from '../api/guidelines';
 import { api } from '../api/client';
+import { historyApi } from '../api/history';
 import { ContradictionPair } from '../types';
 
 export const AuditPage: React.FC = () => {
   const { currentBrand } = useApp();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const historyIdParam = searchParams.get('history_id');
+  const restoredSessionState = (location.state as any)?.restoreSession;
   const [loading, setLoading] = useState(true);
   const [contradictions, setContradictions] = useState<ContradictionPair[]>([]);
   const [totalRulesEvaluated, setTotalRulesEvaluated] = useState<number>(0);
@@ -89,6 +95,35 @@ export const AuditPage: React.FC = () => {
       if (res?.message) {
         setScanMessage(res.message);
       }
+
+      // Auto-save contradiction audit to History
+      try {
+        const count = conflictsList.length;
+        const title = `Policy Audit: ${currentBrand?.name || 'Brand'} Contradictions`;
+        const summary = count === 0
+          ? 'Zero Contradictions Detected • Guidelines Harmonized'
+          : `${count} Policy Conflict${count === 1 ? '' : 's'} Flagged`;
+
+        historyApi
+          .saveHistory({
+            session_type: 'CONTRADICTION_CHECK',
+            title,
+            summary,
+            inputs_payload: {
+              brandId,
+              brandName: currentBrand?.name,
+            },
+            results_payload: {
+              conflicts: conflictsList,
+              totalRulesEvaluated: res?.rules_evaluated_count || 0,
+              message: res?.message,
+            },
+            brand_id: brandId,
+          })
+          .catch((err) => console.debug('History auto-save notice:', err));
+      } catch (err) {
+        console.debug('History auto-save error:', err);
+      }
     } catch (err: any) {
       console.error('Failed to run autonomous contradiction scan:', err);
       // Display the specific error message parsed by the Axios interceptor
@@ -100,9 +135,46 @@ export const AuditPage: React.FC = () => {
     }
   };
 
+  const restoreContradictionSession = (detail: any) => {
+    try {
+      const results = detail.results_payload || {};
+      const conflictsList: ContradictionPair[] = results.conflicts || [];
+      setContradictions(conflictsList);
+      if (results.totalRulesEvaluated !== undefined) {
+        setTotalRulesEvaluated(results.totalRulesEvaluated);
+      }
+      if (results.message) {
+        setScanMessage(results.message);
+      }
+      setToastMessage(`Restored audit session: "${detail.title || 'Policy Scan'}"`);
+      setTimeout(() => setToastMessage(null), 3500);
+    } catch (e) {
+      console.error('Failed to restore contradiction session:', e);
+    }
+  };
+
+  const loadContradictionHistoryById = async (historyId: string) => {
+    setLoading(true);
+    try {
+      const detail = await historyApi.getHistoryDetail(historyId);
+      restoreContradictionSession(detail);
+    } catch (e) {
+      console.error('Failed to load history by id:', e);
+      runAutonomousScan();
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    runAutonomousScan();
-  }, [currentBrand.id]);
+    if (restoredSessionState) {
+      restoreContradictionSession(restoredSessionState);
+    } else if (historyIdParam) {
+      loadContradictionHistoryById(historyIdParam);
+    } else {
+      runAutonomousScan();
+    }
+  }, [currentBrand.id, historyIdParam, restoredSessionState]);
 
   const handleOpenResolve = (item: ContradictionPair) => {
     setActiveResolveItem(item);

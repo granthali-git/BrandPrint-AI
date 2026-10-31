@@ -108,6 +108,7 @@ export interface ReviewResponse {
   visual_analysis_message?: string | null;
   is_image_asset?: boolean;
   brand_id?: number | string;
+  compliance_score?: number;
   status?: SubmissionStatus;
   ai_transparency?: AITransparencyMeta | null;
 }
@@ -318,8 +319,41 @@ export interface WhatIfSimulationResult {
   summary?: any;
   safety_score?: number;
   baseline_score?: number;
+  guideline_delta?: string;
+  simulated_score?: number;
   excellence_score?: number;
   excellence_status?: 'exceeds_standard' | 'meets_standard' | 'needs_work' | string;
   positive_impacts?: PositiveImpact[];
   strategic_highlights?: string[];
+}
+
+export type HistorySessionType =
+  | 'SINGLE_AUDIT'
+  | 'DUAL_COMPARISON'
+  | 'THREE_WAY_COMPARISON'
+  | 'CONTRADICTION_CHECK';
+
+export interface HistorySessionItem {
+  id: string;
+  created_at: string;
+  session_type: HistorySessionType;
+  title: string;
+  summary?: string | null;
+  brand_id?: number | string | null;
+  user_id?: number | string | null;
+}
+
+export interface HistorySessionDetail extends HistorySessionItem {
+  inputs_payload: Record<string, any>;
+  results_payload: Record<string, any>;
+}
+
+export interface HistorySessionCreate {
+  session_type: HistorySessionType;
+  title: string;
+  summary?: string | null;
+  inputs_payload: Record<string, any>;
+  results_payload: Record<string, any>;
+  brand_id?: number | string | null;
+  user_id?: number | string | null;
 }

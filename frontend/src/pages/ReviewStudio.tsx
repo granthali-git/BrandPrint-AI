@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import {
   FileText,
   UploadCloud,
@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { reviewsApi } from '../api/reviews';
+import { historyApi } from '../api/history';
 import {
   ReviewResponse,
   Finding,
@@ -43,9 +44,12 @@ import { AITransparencyModal } from '../components/common/AITransparencyModal';
 
 export const ReviewStudio: React.FC = () => {
   const { currentBrand } = useApp();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const submissionIdParam = searchParams.get('id');
+  const historyIdParam = searchParams.get('history_id');
+  const restoredSessionState = (location.state as any)?.restoreSession;
 
   // Multi-Format Input State
   const [inputTab, setInputTab] = useState<'text' | 'file' | 'url'>('text');
@@ -106,15 +110,72 @@ export const ReviewStudio: React.FC = () => {
   const findingCardsRef = useRef<Record<string | number, HTMLDivElement | null>>({});
   const contentPaneRef = useRef<HTMLDivElement | null>(null);
 
-  // Load review on mount or when submissionId changes
+  const restoreHistorySession = (detail: any) => {
+    try {
+      const inputs = detail.inputs_payload || {};
+      const results = detail.results_payload || {};
+
+      if (inputs.inputTab) {
+        setInputTab(inputs.inputTab);
+      }
+      if (inputs.rawText !== undefined) {
+        setRawText(inputs.rawText);
+      }
+      if (inputs.urlInput !== undefined) {
+        setUrlInput(inputs.urlInput);
+      }
+      if (inputs.activeContent !== undefined) {
+        setActiveContent(inputs.activeContent);
+      } else if (results.extracted_text) {
+        setActiveContent(results.extracted_text);
+      } else if (inputs.rawText) {
+        setActiveContent(inputs.rawText);
+      }
+
+      if (results && (results.findings || results.compliance_score !== undefined)) {
+        setReviewData(results);
+        if (results.findings && results.findings.length > 0) {
+          setSelectedFindingId(results.findings[0].id);
+        }
+      }
+
+      setDecisionToast({
+        type: 'success',
+        msg: `Restored session from history: "${detail.title || 'Audit'}"`,
+      });
+    } catch (e) {
+      console.error('Failed to restore history session into ReviewStudio:', e);
+    }
+  };
+
+  const loadHistoryById = async (historyId: string) => {
+    setIsEvaluating(true);
+    setEvalError(null);
+    try {
+      const detail = await historyApi.getHistoryDetail(historyId);
+      restoreHistorySession(detail);
+    } catch (err: any) {
+      console.warn('Backend load history failed:', err);
+      const msg = err?.response?.data?.detail || err?.message || `History session #${historyId} could not be loaded.`;
+      setEvalError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    } finally {
+      setIsEvaluating(false);
+    }
+  };
+
+  // Load review on mount, when submissionId changes, or when restoring history
   useEffect(() => {
-    if (submissionIdParam) {
+    if (restoredSessionState) {
+      restoreHistorySession(restoredSessionState);
+    } else if (historyIdParam) {
+      loadHistoryById(historyIdParam);
+    } else if (submissionIdParam) {
       loadReviewById(submissionIdParam);
     } else {
       // Initialize with demo compliance review
       loadDemoReview();
     }
-  }, [submissionIdParam, currentBrand.id]);
+  }, [submissionIdParam, historyIdParam, restoredSessionState, currentBrand.id]);
 
   const loadReviewById = async (id: string | number) => {
     setIsEvaluating(true);
@@ -368,9 +429,42 @@ export const ReviewStudio: React.FC = () => {
         setSelectedFindingId(result.findings[0].id);
       }
 
+      // Auto-save session to History
+      try {
+        const title =
+          inputTab === 'url'
+            ? `Web Audit: ${urlInput.replace(/^https?:\/\//, '').slice(0, 35)}`
+            : inputTab === 'file'
+              ? `Document: ${selectedFile?.name || 'Uploaded File'}`
+              : `Copy Audit: "${rawText.slice(0, 32).trim()}..."`;
+        const score = result.compliance_score ?? 100;
+        const violations = result.findings?.length || 0;
+        const summary = `${violations} Violation${violations === 1 ? '' : 's'} Flagged • ${score}% Safety Score`;
+
+        historyApi
+          .saveHistory({
+            session_type: 'SINGLE_AUDIT',
+            title,
+            summary,
+            inputs_payload: {
+              inputTab,
+              rawText: inputTab === 'text' ? rawText : '',
+              urlInput: inputTab === 'url' ? urlInput : '',
+              fileName: selectedFile?.name || null,
+              fileSize: selectedFile?.size || null,
+              activeContent: extracted,
+            },
+            results_payload: result,
+            brand_id: currentBrand?.id || 1,
+          })
+          .catch((err) => console.debug('History auto-save notice:', err));
+      } catch (err) {
+        console.debug('History auto-save error:', err);
+      }
+
       setDecisionToast({
         type: 'success',
-        msg: `Review complete: ${result.total_findings || 0} policy findings detected.`,
+        msg: `Review complete: ${result.total_findings || 0} policy findings detected • Saved to History`,
       });
     } catch (err: any) {
       console.error('Compliance review evaluation failed:', err);

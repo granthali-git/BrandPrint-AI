@@ -8,6 +8,7 @@ from app.models.finding import Finding, SeverityLevel, UserAction
 from app.models.review import ReviewDecision, ReviewDecisionType
 from app.models.audit import PolicyAudit
 from app.models.transparency import AITransparencyLog, GuidelineGap
+from app.models.history import AuditHistory
 
 __all__ = [
     "Base",
@@ -27,5 +28,6 @@ __all__ = [
     "PolicyAudit",
     "AITransparencyLog",
     "GuidelineGap",
+    "AuditHistory",
 ]
 

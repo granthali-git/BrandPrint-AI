@@ -6,6 +6,7 @@ from app.schemas.guideline import GuidelineRuleBase, GuidelineRuleCreate, Guidel
 from app.schemas.submission import ContentSubmissionBase, ContentSubmissionCreate, ContentSubmissionUpdate, ContentSubmissionResponse
 from app.schemas.finding import FindingBase, FindingCreate, FindingUpdate, FindingResponse
 from app.schemas.review import ReviewDecisionBase, ReviewDecisionCreate, ReviewDecisionResponse
+from app.schemas.history import HistorySessionCreate, HistorySessionItem, HistorySessionDetail, HistorySavedResponse
 
 __all__ = [
     "UserBase",
@@ -37,4 +38,8 @@ __all__ = [
     "ReviewDecisionResponse",
     "ReviewDecisionSubmissionRequest",
     "WhatIfSimulateRequest",
+    "HistorySessionCreate",
+    "HistorySessionItem",
+    "HistorySessionDetail",
+    "HistorySavedResponse",
 ]

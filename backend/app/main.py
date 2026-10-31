@@ -14,6 +14,7 @@ from app.routes.guidelines import router as guidelines_router
 from app.routes.reviews import router as reviews_router
 from app.routes.dashboard import router as dashboard_router
 from app.routes.governance import router as governance_router
+from app.routes.history import router as history_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -98,6 +99,8 @@ app.include_router(dashboard_router, prefix="/api")
 app.include_router(dashboard_router)
 app.include_router(governance_router, prefix="/api")
 app.include_router(governance_router)
+app.include_router(history_router, prefix="/api")
+app.include_router(history_router)
 
 # Direct alias for /check-contradictions
 from typing import Optional

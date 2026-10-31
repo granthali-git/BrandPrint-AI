@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import {
   Columns,
   ArrowRight,
@@ -25,11 +26,17 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { reviewsApi } from '../api/reviews';
+import { historyApi } from '../api/history';
 import { DualComparisonResponse, Finding } from '../types';
 import { SlotCard, SlotState } from '../components/comparison/SlotCard';
 
 export const ComparisonView: React.FC = () => {
   const { currentBrand } = useApp();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const historyIdParam = searchParams.get('history_id');
+  const restoredSessionState = (location.state as any)?.restoreSession;
+  const [saveToast, setSaveToast] = useState<string | null>(null);
 
   // Slot A State (Baseline / Reference)
   const [slotA, setSlotA] = useState<SlotState>({
@@ -283,6 +290,51 @@ export const ComparisonView: React.FC = () => {
 
       const res = await reviewsApi.compareReviews(payload);
       setComparisonResult(res);
+
+      // Auto-save comparison to History
+      try {
+        const is3Way = Boolean(payload.slot_c);
+        const title = `Multi-Variant Comparison (${is3Way ? '3 Variants' : 'Dual'})`;
+        const winner = res.best_variant_title || 'Optimized Variant';
+        const summary = `${winner} Winner • ${res.matrix?.length || 0} Dimensions Evaluated`;
+
+        historyApi
+          .saveHistory({
+            session_type: is3Way ? 'THREE_WAY_COMPARISON' : 'DUAL_COMPARISON',
+            title,
+            summary,
+            inputs_payload: {
+              slot_a: {
+                sourceType: slotA.sourceType,
+                content: textA,
+                url: slotA.url,
+                fileName: slotA.file?.name,
+              },
+              slot_b: {
+                sourceType: slotB.sourceType,
+                content: textB,
+                url: slotB.url,
+                fileName: slotB.file?.name,
+              },
+              slot_c: payload.slot_c
+                ? {
+                    sourceType: slotC.sourceType,
+                    content: textC,
+                    url: slotC.url,
+                    fileName: slotC.file?.name,
+                  }
+                : null,
+            },
+            results_payload: res,
+            brand_id: currentBrand?.id || 1,
+          })
+          .catch((err) => console.debug('History comparison save notice:', err));
+
+        setSaveToast('Saved to History');
+        setTimeout(() => setSaveToast(null), 3500);
+      } catch (err) {
+        console.debug('History comparison save caught:', err);
+      }
     } catch (err: any) {
       console.error('Comparison execution failed:', err);
       alert(err?.response?.data?.detail || 'Failed to execute comparative audit.');
@@ -291,10 +343,73 @@ export const ComparisonView: React.FC = () => {
     }
   };
 
-  // Auto-run comparison on mount with defaults
+  const restoreComparisonSession = (detail: any) => {
+    try {
+      const inputs = detail.inputs_payload || {};
+      const results = detail.results_payload || {};
+
+      if (inputs.slot_a) {
+        setSlotA((prev) => ({
+          ...prev,
+          sourceType: inputs.slot_a.sourceType || 'text',
+          content: inputs.slot_a.content || '',
+          url: inputs.slot_a.url || '',
+          file: null,
+        }));
+      }
+      if (inputs.slot_b) {
+        setSlotB((prev) => ({
+          ...prev,
+          sourceType: inputs.slot_b.sourceType || 'text',
+          content: inputs.slot_b.content || '',
+          url: inputs.slot_b.url || '',
+          file: null,
+        }));
+      }
+      if (inputs.slot_c) {
+        setSlotC((prev) => ({
+          ...prev,
+          sourceType: inputs.slot_c.sourceType || 'text',
+          content: inputs.slot_c.content || '',
+          url: inputs.slot_c.url || '',
+          file: null,
+        }));
+      }
+
+      if (results && (results.matrix || results.best_variant)) {
+        setComparisonResult(results);
+      }
+
+      setSaveToast(`Restored: "${detail.title || 'Comparison'}"`);
+      setTimeout(() => setSaveToast(null), 3500);
+    } catch (e) {
+      console.error('Failed to restore comparison session:', e);
+    }
+  };
+
+  const loadComparisonHistoryById = async (historyId: string) => {
+    setLoading(true);
+    try {
+      const detail = await historyApi.getHistoryDetail(historyId);
+      restoreComparisonSession(detail);
+    } catch (e) {
+      console.error('Failed to load comparison history by id:', e);
+      handleRunComparison();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Auto-run comparison on mount with defaults only if not restoring from history
   useEffect(() => {
-    handleRunComparison();
-  }, []);
+    if (restoredSessionState) {
+      restoreComparisonSession(restoredSessionState);
+    } else if (historyIdParam) {
+      loadComparisonHistoryById(historyIdParam);
+    } else {
+      handleRunComparison();
+    }
+  }, [historyIdParam, restoredSessionState]);
 
   const metrics = comparisonResult?.metrics;
   const bestVariant = comparisonResult?.best_variant || 'slot_c';
@@ -354,7 +469,15 @@ export const ComparisonView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200 text-brand-charcoal">
+    <div className="space-y-6 animate-in fade-in duration-200 text-brand-charcoal relative">
+      {/* Toast Notification */}
+      {saveToast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-oceanDark text-white shadow-lg border border-brand-oceanLight/30 text-xs font-medium animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <CheckCircle2 className="w-4 h-4 text-brand-amber shrink-0" />
+          <span>{saveToast}</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-brand-sand">
         <div>

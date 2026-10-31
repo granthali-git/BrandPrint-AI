@@ -10,6 +10,7 @@ import { GuidelinesPage } from './pages/GuidelinesPage';
 import { ReviewStudio } from './pages/ReviewStudio';
 import { AuditPage } from './pages/AuditPage';
 import { ComparisonView } from './pages/ComparisonView';
+import { HistoryView } from './pages/HistoryView';
 import { AuthPage } from './pages/AuthPage';
 
 const queryClient = new QueryClient({
@@ -92,8 +93,10 @@ export const App: React.FC = () => {
                 <Route index element={<Dashboard />} />
                 <Route path="guidelines" element={<GuidelinesPage />} />
                 <Route path="studio" element={<ReviewStudio />} />
+                <Route path="review" element={<ReviewStudio />} />
                 <Route path="compare" element={<ComparisonView />} />
                 <Route path="audit" element={<AuditPage />} />
+                <Route path="history" element={<HistoryView />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Route>
             </Routes>

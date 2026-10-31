@@ -9,6 +9,7 @@ import {
   ShieldAlert,
   Database,
   RefreshCw,
+  History,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { API_BASE_URL } from '../../api/client';
@@ -76,6 +77,12 @@ export const Sidebar: React.FC = () => {
       path: '/audit',
       icon: Scale,
       badge: 'Audit',
+    },
+    {
+      name: 'Audit History',
+      path: '/history',
+      icon: History,
+      badge: 'Sessions',
     },
   ];
 
