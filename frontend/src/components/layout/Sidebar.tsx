@@ -8,9 +8,6 @@ import {
   Columns,
   ShieldAlert,
   Database,
-  ExternalLink,
-  Cpu,
-  Sparkles,
   RefreshCw,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -200,26 +197,6 @@ export const Sidebar: React.FC = () => {
           </NavLink>
         ))}
       </nav>
-
-      {/* Engine Info Footer */}
-      <div className="p-3 m-3 rounded-xl bg-brand-ocean/40 border border-brand-oceanLight/30 text-xs space-y-2 text-[#a3b8be]">
-        <div className="flex items-center justify-between text-[11px]">
-          <span className="flex items-center gap-1.5 text-white font-medium">
-            <Cpu className="w-3.5 h-3.5 text-brand-amber" />
-            <span>FAISS + Gemini</span>
-          </span>
-          <span className="text-[10px] font-mono text-brand-amber">Strict Grounding</span>
-        </div>
-        <a
-          href={`${API_BASE_URL}/docs`}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center justify-between pt-1.5 text-[10px] font-mono text-[#8fa8af] hover:text-brand-amber transition-colors border-t border-brand-oceanLight/20"
-        >
-          <span>FastAPI Documentation</span>
-          <ExternalLink className="w-3 h-3" />
-        </a>
-      </div>
 
       {/* Footer Version Info */}
       <div className="px-5 py-3 border-t border-brand-ocean/80 flex items-center justify-between text-[11px] font-mono text-[#8fa8af]">
