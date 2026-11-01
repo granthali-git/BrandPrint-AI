@@ -132,3 +132,4 @@ def test_two_way_comparison_fallback(db_session):
     assert res["best_variant"] == "slot_b"
     assert res["score_delta"] > 0
     assert len(res["results"]) == 2
+

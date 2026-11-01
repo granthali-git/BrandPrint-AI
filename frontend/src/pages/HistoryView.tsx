@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Clock,
+  Calendar,
   Search,
   Trash2,
   ExternalLink,
@@ -22,6 +23,102 @@ import { historyApi } from '../api/history';
 import { HistorySessionItem, HistorySessionDetail } from '../types';
 
 type CategoryFilter = 'ALL' | 'AUDIT' | 'COMPARISON' | 'CONTRADICTION';
+
+export interface FormattedDateDetails {
+  group: string;
+  formattedFull: string;
+  dateStr: string;
+  timeStr: string;
+  relativeTag: string;
+}
+
+// Utility helper for clean date grouping and display
+export const formatDateDetails = (isoString: string): FormattedDateDetails => {
+  if (!isoString) {
+    return {
+      group: 'Earlier',
+      formattedFull: 'Recently',
+      dateStr: 'Recently',
+      timeStr: '',
+      relativeTag: 'Recently',
+    };
+  }
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) {
+    return {
+      group: 'Earlier',
+      formattedFull: 'Recently',
+      dateStr: 'Recently',
+      timeStr: '',
+      relativeTag: 'Recently',
+    };
+  }
+  const now = new Date();
+
+  const isToday = date.toDateString() === now.toDateString();
+
+  const yesterday = new Date();
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+
+  const diffTime = Math.max(0, now.getTime() - date.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+  const diffMins = Math.floor(diffTime / (1000 * 60));
+
+  let group = 'Earlier';
+  if (isToday) {
+    group = 'Today';
+  } else if (isYesterday) {
+    group = 'Yesterday';
+  } else if (diffDays <= 7) {
+    group = 'Previous 7 Days';
+  } else {
+    const monthYear = date.toLocaleDateString('en-US', {
+      month: 'long',
+      year: 'numeric',
+    });
+    group = `Earlier (${monthYear})`;
+  }
+
+  const dateStr = date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const timeStr = date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  let relativeTag = '';
+  if (diffMins < 1) {
+    relativeTag = 'Just now';
+  } else if (diffMins < 60) {
+    relativeTag = `${diffMins}m ago`;
+  } else if (isToday) {
+    relativeTag = `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
+  } else if (isYesterday) {
+    relativeTag = 'Yesterday';
+  } else if (diffDays <= 7) {
+    relativeTag = `${diffDays}d ago`;
+  } else {
+    relativeTag = date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
+  }
+
+  return {
+    group,
+    formattedFull: `${dateStr} • ${timeStr}`,
+    dateStr,
+    timeStr,
+    relativeTag,
+  };
+};
 
 export const HistoryView: React.FC = () => {
   const navigate = useNavigate();
@@ -139,69 +236,50 @@ export const HistoryView: React.FC = () => {
     }
   };
 
-  // Group items chronologically (Today, Yesterday, Previous 7 Days, Older)
-  const groupedSessions = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    const sevenDaysAgo = new Date(today);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-    const groups: {
-      today: HistorySessionItem[];
-      yesterday: HistorySessionItem[];
-      previous7Days: HistorySessionItem[];
-      older: HistorySessionItem[];
-    } = {
-      today: [],
-      yesterday: [],
-      previous7Days: [],
-      older: [],
-    };
+  // Group items chronologically (Today, Yesterday, Previous 7 Days, Earlier (Month Year))
+  const groupedSessionList = useMemo(() => {
+    const groupMap = new Map<string, { groupName: string; items: HistorySessionItem[]; latestTimestamp: number }>();
 
     sessions.forEach((s) => {
-      const sessionDate = new Date(s.created_at);
-      if (sessionDate >= today) {
-        groups.today.push(s);
-      } else if (sessionDate >= yesterday) {
-        groups.yesterday.push(s);
-      } else if (sessionDate >= sevenDaysAgo) {
-        groups.previous7Days.push(s);
+      const details = formatDateDetails(s.created_at);
+      const gName = details.group;
+      const itemTime = new Date(s.created_at).getTime() || 0;
+
+      if (!groupMap.has(gName)) {
+        groupMap.set(gName, {
+          groupName: gName,
+          items: [s],
+          latestTimestamp: itemTime,
+        });
       } else {
-        groups.older.push(s);
+        const entry = groupMap.get(gName)!;
+        entry.items.push(s);
+        if (itemTime > entry.latestTimestamp) {
+          entry.latestTimestamp = itemTime;
+        }
       }
     });
 
-    return groups;
+    // Sort items within each group newest first
+    groupMap.forEach((entry) => {
+      entry.items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    });
+
+    // Priority sorting: Today (0), Yesterday (1), Previous 7 Days (2), Earlier groups by timestamp desc
+    const getGroupRank = (gName: string): number => {
+      if (gName === 'Today') return 0;
+      if (gName === 'Yesterday') return 1;
+      if (gName === 'Previous 7 Days') return 2;
+      return 3;
+    };
+
+    return Array.from(groupMap.values()).sort((a, b) => {
+      const rankA = getGroupRank(a.groupName);
+      const rankB = getGroupRank(b.groupName);
+      if (rankA !== rankB) return rankA - rankB;
+      return b.latestTimestamp - a.latestTimestamp;
+    });
   }, [sessions]);
-
-  // Relative timestamp formatter
-  const formatTimeAgo = (dateStr: string) => {
-    try {
-      const now = new Date();
-      const past = new Date(dateStr);
-      const diffMs = now.getTime() - past.getTime();
-      const diffMins = Math.floor(diffMs / 60000);
-      const diffHours = Math.floor(diffMins / 60);
-      const diffDays = Math.floor(diffHours / 24);
-
-      if (diffMins < 1) return 'Just now';
-      if (diffMins < 60) return `${diffMins}m ago`;
-      if (diffHours < 24) return `${diffHours}h ago`;
-      if (diffDays === 1) return 'Yesterday';
-      if (diffDays < 7) return `${diffDays}d ago`;
-      return past.toLocaleDateString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      });
-    } catch {
-      return dateStr;
-    }
-  };
 
   // Icon selector based on session type
   const renderSessionIcon = (type: string) => {
@@ -273,6 +351,8 @@ export const HistoryView: React.FC = () => {
   // Render individual session card
   const renderSessionCard = (item: HistorySessionItem) => {
     const isDeleting = deletingId === item.id;
+    const dateInfo = formatDateDetails(item.created_at);
+
     return (
       <div
         key={item.id}
@@ -282,7 +362,7 @@ export const HistoryView: React.FC = () => {
         <div className="flex items-start gap-3.5 flex-1 min-w-0">
           {renderSessionIcon(item.session_type)}
 
-          <div className="min-w-0 flex-1 space-y-1">
+          <div className="min-w-0 flex-1 space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-sm font-bold text-brand-charcoal group-hover:text-brand-ocean transition-colors truncate">
                 {item.title}
@@ -296,11 +376,19 @@ export const HistoryView: React.FC = () => {
               </p>
             )}
 
-            <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400">
-              <Clock className="w-3 h-3 text-slate-400" />
-              <span>{formatTimeAgo(item.created_at)}</span>
-              <span>•</span>
-              <span className="truncate max-w-[200px]">ID: {item.id.slice(0, 8)}...</span>
+            {/* Explicit Date & Time Badge + Metadata */}
+            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 text-[11px] font-mono shadow-2xs">
+                <Calendar className="w-3.5 h-3.5 text-brand-ocean shrink-0" />
+                <span className="font-semibold text-brand-charcoal">{dateInfo.formattedFull}</span>
+                <span className="text-slate-400 font-normal">({dateInfo.relativeTag})</span>
+              </div>
+
+              <span className="text-slate-300 hidden sm:inline">•</span>
+
+              <span className="text-slate-400 font-mono text-[11px] truncate max-w-[160px]" title={item.id}>
+                ID: {item.id.slice(0, 8)}...
+              </span>
             </div>
           </div>
         </div>
@@ -518,73 +606,22 @@ export const HistoryView: React.FC = () => {
         {/* Grouped Chronological History List */}
         {!loading && totalSessionsCount > 0 && (
           <div className="space-y-6 pt-2">
-            {groupedSessions.today.length > 0 && (
-              <div className="space-y-2.5">
+            {groupedSessionList.map((group) => (
+              <div key={group.groupName} className="space-y-2.5">
                 <div className="flex items-center gap-2 px-1">
                   <span className="text-xs font-bold uppercase tracking-wider text-brand-charcoalMuted">
-                    Today
+                    {group.groupName}
                   </span>
                   <div className="flex-1 h-px bg-brand-sand" />
                   <span className="text-[11px] font-mono text-slate-400">
-                    {groupedSessions.today.length} {groupedSessions.today.length === 1 ? 'session' : 'sessions'}
+                    {group.items.length} {group.items.length === 1 ? 'session' : 'sessions'}
                   </span>
                 </div>
                 <div className="space-y-2.5">
-                  {groupedSessions.today.map(renderSessionCard)}
+                  {group.items.map(renderSessionCard)}
                 </div>
               </div>
-            )}
-
-            {groupedSessions.yesterday.length > 0 && (
-              <div className="space-y-2.5">
-                <div className="flex items-center gap-2 px-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-brand-charcoalMuted">
-                    Yesterday
-                  </span>
-                  <div className="flex-1 h-px bg-brand-sand" />
-                  <span className="text-[11px] font-mono text-slate-400">
-                    {groupedSessions.yesterday.length} {groupedSessions.yesterday.length === 1 ? 'session' : 'sessions'}
-                  </span>
-                </div>
-                <div className="space-y-2.5">
-                  {groupedSessions.yesterday.map(renderSessionCard)}
-                </div>
-              </div>
-            )}
-
-            {groupedSessions.previous7Days.length > 0 && (
-              <div className="space-y-2.5">
-                <div className="flex items-center gap-2 px-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-brand-charcoalMuted">
-                    Previous 7 Days
-                  </span>
-                  <div className="flex-1 h-px bg-brand-sand" />
-                  <span className="text-[11px] font-mono text-slate-400">
-                    {groupedSessions.previous7Days.length} {groupedSessions.previous7Days.length === 1 ? 'session' : 'sessions'}
-                  </span>
-                </div>
-                <div className="space-y-2.5">
-                  {groupedSessions.previous7Days.map(renderSessionCard)}
-                </div>
-              </div>
-            )}
-
-            {groupedSessions.older.length > 0 && (
-              <div className="space-y-2.5">
-                <div className="flex items-center gap-2 px-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-brand-charcoalMuted">
-                    Older
-                  </span>
-                  <div className="flex-1 h-px bg-brand-sand" />
-                  <span className="text-[11px] font-mono text-slate-400">
-                    {groupedSessions.older.length} {groupedSessions.older.length === 1 ? 'session' : 'sessions'}
-                  </span>
-                </div>
-                <div className="space-y-2.5">
-                  {groupedSessions.older.map(renderSessionCard)}
-                </div>
-              </div>
-            )}
+            ))}
           </div>
         )}
       </div>
