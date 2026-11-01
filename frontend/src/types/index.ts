@@ -174,11 +174,22 @@ export interface ComparisonResultItem {
   findings: Finding[];
 }
 
+export interface SlotEvaluationSummary {
+  score: number;
+  status: 'FULLY_COMPLIANT' | 'NEEDS_REVISION' | 'NON_COMPLIANT' | string;
+  violations_count: number;
+  critical_issues: string[];
+}
+
 export interface DualComparisonResponse {
   results?: ComparisonResultItem[];
   matrix?: ComparisonMatrixRow[];
   best_variant?: string;
   best_variant_title?: string;
+  winner_title?: string;
+  executive_verdict?: string;
+  slot_evaluations?: Record<string, SlotEvaluationSummary>;
+  key_improvements_noted?: string[];
   title_a: string;
   title_b: string;
   title_c?: string | null;

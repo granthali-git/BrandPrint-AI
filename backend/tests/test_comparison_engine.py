@@ -100,10 +100,27 @@ def test_three_way_comparison_produces_distinct_findings(db_session):
     assert any("zero security breaches" in f for f in flagged_b)
     assert any("nasa" in f for f in flagged_b)
 
-    # 2. Verify Best Variant is Slot C
+    # 2. Verify Best Variant is Slot C and Executive Decision Outputs
     assert res["best_variant"] == "slot_c"
+    assert "Slot C" in res["winner_title"]
+    assert "executive_verdict" in res
+    assert len(res["executive_verdict"]) > 20
+    assert "key_improvements_noted" in res
+    assert isinstance(res["key_improvements_noted"], list)
+    assert len(res["key_improvements_noted"]) > 0
 
-    # 3. Verify Matrix displays actual, non-identical values
+    # 3. Verify slot_evaluations structure
+    assert "slot_evaluations" in res
+    evals = res["slot_evaluations"]
+    assert "slot_a" in evals and "slot_b" in evals and "slot_c" in evals
+    assert evals["slot_c"]["status"] == "FULLY_COMPLIANT"
+    assert evals["slot_a"]["status"] in ("NON_COMPLIANT", "NEEDS_REVISION")
+    assert evals["slot_b"]["status"] in ("NON_COMPLIANT", "NEEDS_REVISION")
+    assert isinstance(evals["slot_a"]["critical_issues"], list)
+    assert isinstance(evals["slot_b"]["critical_issues"], list)
+    assert len(evals["slot_b"]["critical_issues"]) > 0
+
+    # 4. Verify Matrix displays actual, non-identical values
     matrix = res["matrix"]
     score_row = next(r for r in matrix if r["metric"] == "Safety Score")
     assert score_row["slot_c"] != score_row["slot_b"]
