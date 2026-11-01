@@ -7,6 +7,11 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 from sqlalchemy.orm import Session
 
+try:
+    import faiss
+except Exception as _faiss_err:
+    faiss = None
+
 from app.models.guideline import GuidelineRule
 
 logger = logging.getLogger(__name__)
@@ -63,6 +68,46 @@ def get_embedding_model():
     return _embedding_model
 
 
+# Standard baseline enterprise rules for cold-start brands and testing
+DEFAULT_BASELINE_RULES: List[Dict[str, Any]] = [
+    {
+        "id": "POL-AVAIL-01",
+        "title": "No Absolute Availability Guarantees",
+        "category": "prohibited_claim",
+        "rule_text": "Never state or guarantee 100% uptime, zero downtime, or infallible service without SLA caveats and failure contingency disclosures.",
+        "rule_code": "POL-AVAIL-01",
+    },
+    {
+        "id": "POL-SEC-01",
+        "title": "No Absolute Security or Zero-Breach Claims",
+        "category": "prohibited_claim",
+        "rule_text": "Never claim zero security breaches, zero vulnerabilities, or 100% unhackable infrastructure. State verified compliance audits like SOC 2 Type II.",
+        "rule_code": "POL-SEC-01",
+    },
+    {
+        "id": "POL-CERT-01",
+        "title": "No Unverified Government or Agency Accreditations",
+        "category": "prohibited_claim",
+        "rule_text": "Never claim government or agency certifications such as NASA or DoD without documented clearance and published audit report citations.",
+        "rule_code": "POL-CERT-01",
+    },
+    {
+        "id": "POL-SUPER-01",
+        "title": "No Unverified Superlatives or Market Leadership Claims",
+        "category": "prohibited_claim",
+        "rule_text": "Never claim to be #1, world's number one, or cheapest on the market without citing recognized third-party analyst reports.",
+        "rule_code": "POL-SUPER-01",
+    },
+    {
+        "id": "POL-DISC-01",
+        "title": "Truth in Advertising & Promotional Transparency",
+        "category": "brand_voice",
+        "rule_text": "Avoid high-pressure urgency tactics such as 'exclusive 50% limited promotion discount' or 'call right now to claim' without published terms.",
+        "rule_code": "POL-DISC-01",
+    },
+]
+
+
 def _normalize_rule(rule: Any) -> RuleDict:
     """Normalize a GuidelineRule ORM model or plain dict into a RuleDict."""
     if isinstance(rule, RuleDict):
@@ -106,7 +151,13 @@ def index_brand_rules(brand_id: Union[int, str], rules: List[Any]) -> int:
             del _brand_indices[key]
         return 0
 
-    import faiss
+    global faiss
+    if faiss is None:
+        try:
+            import faiss
+        except Exception as _err:
+            logger.warning(f"FAISS module unavailable: {_err}")
+            return 0
 
     normalized_rules = [_normalize_rule(r) for r in rules]
     rule_texts = [f"{r['title']}. {r['rule_text']}" for r in normalized_rules]
@@ -156,13 +207,23 @@ def retrieve_relevant_rules(
     # Dynamic loading from DB if not in memory
     if key not in _brand_indices and db is not None:
         target_id = int(brand_id) if str(brand_id).isdigit() else brand_id
-        db_rules = (
-            db.query(GuidelineRule)
-            .filter(GuidelineRule.brand_id == target_id, GuidelineRule.is_active == True)
-            .all()
-        )
-        if db_rules:
-            index_brand_rules(key, db_rules)
+        try:
+            db_rules = (
+                db.query(GuidelineRule)
+                .filter(GuidelineRule.brand_id == target_id, GuidelineRule.is_active == True)
+                .all()
+            )
+            if not db_rules:
+                db_rules = db.query(GuidelineRule).filter(GuidelineRule.is_active == True).all()
+            if db_rules:
+                index_brand_rules(key, db_rules)
+            else:
+                index_brand_rules(key, DEFAULT_BASELINE_RULES)
+        except Exception as e:
+            logger.warning(f"Error loading guideline rules from DB for brand '{key}': {e}. Using baseline rules.")
+            index_brand_rules(key, DEFAULT_BASELINE_RULES)
+    elif key not in _brand_indices:
+        index_brand_rules(key, DEFAULT_BASELINE_RULES)
 
     brand_data = _brand_indices.get(key)
     if not brand_data or not brand_data.get("rules"):

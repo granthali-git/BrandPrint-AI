@@ -9,6 +9,7 @@ Pipeline:
 6. Persistence to Supabase (ContentSubmission and Finding records)
 """
 import asyncio
+import hashlib
 import logging
 import time
 from typing import Any, Dict, List, Optional, Union
@@ -960,6 +961,19 @@ async def compare_reviews(
 ):
     """Execute side-by-side multi-asset comparative audit across Slot A, Slot B, and Slot C."""
     try:
+        raw_a = (payload.slot_a.text_content if payload.slot_a and payload.slot_a.text_content else payload.text_a) or ""
+        raw_b = (payload.slot_b.text_content if payload.slot_b and payload.slot_b.text_content else payload.text_b) or ""
+        raw_c = (payload.slot_c.text_content if payload.slot_c and payload.slot_c.text_content else payload.text_c) or ""
+        hash_a = hashlib.sha256(raw_a.encode("utf-8")).hexdigest()[:10]
+        hash_b = hashlib.sha256(raw_b.encode("utf-8")).hexdigest()[:10]
+        hash_c = hashlib.sha256(raw_c.encode("utf-8")).hexdigest()[:10] if raw_c else "none"
+        logger.info(
+            f"[COMPARE_ENDPOINT_INCOMING] brand_id={payload.brand_id} "
+            f"slot_a_len={len(raw_a)} (hash={hash_a}) "
+            f"slot_b_len={len(raw_b)} (hash={hash_b}) "
+            f"slot_c_len={len(raw_c)} (hash={hash_c})"
+        )
+
         result = await asyncio.to_thread(
             compare_assets_or_texts,
             db=db,

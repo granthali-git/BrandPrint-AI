@@ -27,6 +27,101 @@ DEFAULT_PROHIBITED_TERMS = [
     "cheapest on earth",
 ]
 
+# Core deterministic policy enforcement patterns for critical compliance categories
+DEFAULT_DETERMINISTIC_PATTERNS = [
+    # 1. Absolute Availability & Infallibility
+    {
+        "pattern": re.compile(
+            r"\b(?:100%\s+(?:guaranteed\s+)?uptime|100%\s+infallible(?:\s+uptime)?|infallible\s+uptime|guaranteed\s+100%\s+uptime|zero\s+downtime\b|100%\s+bug-free(?:\s+uptime)?)\b",
+            re.IGNORECASE
+        ),
+        "issue_type": "Absolute Availability Guarantee",
+        "severity": "critical",
+        "category": "prohibited_claim",
+        "reason": "Unsubstantiated 100% availability or infallible uptime claim without legally binding SLA caveats and failure contingency disclosures.",
+        "suggested_fix": "State contractually verified SLAs (e.g. '99.99% high-availability infrastructure') rather than absolute 100% guarantees.",
+        "rule_code": "POL-AVAIL-01",
+    },
+    # 2. Absolute Security & Breach Immunity
+    {
+        "pattern": re.compile(
+            r"\b(?:zero\s+(?:security\s+)?breaches?|zero\s+vulnerabilit(?:y|ies)|100%\s+(?:unhackable|hack-proof|bulletproof\s+security)|impenetrable\s+security)\b",
+            re.IGNORECASE
+        ),
+        "issue_type": "Absolute Security Claim",
+        "severity": "critical",
+        "category": "prohibited_claim",
+        "reason": "Absolute security assertions ('zero security breaches', 'unhackable') violate truth-in-advertising guidelines and create catastrophic contractual liability.",
+        "suggested_fix": "Cite verifiable compliance certifications (e.g., 'SOC 2 Type II certified with continuous automated security audits').",
+        "rule_code": "POL-SEC-01",
+    },
+    # 3. Unverified Accreditations & Government/Agency Certifications
+    {
+        "pattern": re.compile(
+            r"\b(?:official\s+)?(?:NASA|DoD|Pentagon|military-grade)\s+certif(?:ied|ication|ied\s+platform)\b",
+            re.IGNORECASE
+        ),
+        "issue_type": "Unverified Agency Certification",
+        "severity": "critical",
+        "category": "prohibited_claim",
+        "reason": "Fabricated or unverified government agency accreditation (e.g., NASA, DoD) violates truth-in-advertising regulations and federal endorsement guidelines.",
+        "suggested_fix": "Remove agency certification claim or cite documented clearance and published audit report.",
+        "rule_code": "POL-CERT-01",
+    },
+    # 4. Unsupported Superlatives & Market Leadership
+    {
+        "pattern": re.compile(
+            r"\b(?:(?:world'?s?\s+)?(?:number\s+one|#1)(?:\s+(?:platform|solution|company|cloud|provider))?|guaranteed\s+#1(?:\s+platform)?)\b",
+            re.IGNORECASE
+        ),
+        "issue_type": "Unsupported Superlative",
+        "severity": "high",
+        "category": "prohibited_claim",
+        "reason": "Unverified claim of being '#1' or 'world's number one' without referencing a specific recognized industry analyst report (e.g., Gartner, Forrester).",
+        "suggested_fix": "Replace with verifiable performance metrics or cite recognized third-party analyst benchmarks.",
+        "rule_code": "POL-SUPER-01",
+    },
+    # 5. Unsubstantiated Price Leadership & Unbeatable Rates
+    {
+        "pattern": re.compile(
+            r"\b(?:cheapest\s+(?:solution|platform|option|on\s+earth|on\s+the\s+market|cloud)|lowest\s+rate\s+guaranteed|unbeatable\s+prices?)\b",
+            re.IGNORECASE
+        ),
+        "issue_type": "Unsubstantiated Price Claim",
+        "severity": "high",
+        "category": "prohibited_claim",
+        "reason": "Asserting to be the 'cheapest solution' or having 'unbeatable prices' without comparative market pricing verification violates advertising standards.",
+        "suggested_fix": "Highlight competitive total cost of ownership (TCO) or invite prospective clients to compare tier pricing.",
+        "rule_code": "POL-PRICE-01",
+    },
+    # 6. Deceptive Urgency & High-Pressure Promotion
+    {
+        "pattern": re.compile(
+            r"\b(?:(?:exclusive\s+)?\d+%\s+limited\s+(?:promotion|promotional|time)\s+discount|call\s+right\s+now\s+to\s+claim)\b",
+            re.IGNORECASE
+        ),
+        "issue_type": "Deceptive Urgency & Promotion",
+        "severity": "medium",
+        "category": "brand_voice",
+        "reason": "High-pressure urgency tactics ('limited promotion discount', 'call right now to claim') compromise institutional brand voice and trust.",
+        "suggested_fix": "Transition to transparent enterprise engagement (e.g. 'Contact our solutions team to discuss tailored enterprise pricing').",
+        "rule_code": "POL-DISC-01",
+    },
+    # 7. Medical & Miracle Cure Assertions
+    {
+        "pattern": re.compile(
+            r"\b(?:guaranteed\s+100%\s+cure|miracle\s+cure|100%\s+cure(?:\s+for\s+[a-z]+)?|risk-free\s+investment|zero\s+risk)\b",
+            re.IGNORECASE
+        ),
+        "issue_type": "Prohibited Absolute Claim",
+        "severity": "critical",
+        "category": "prohibited_claim",
+        "reason": "Absolute medical or financial guarantees ('miracle cure', 'zero risk') violate basic truth-in-advertising standards.",
+        "suggested_fix": "Remove guaranteed cure or risk-free investment assertions.",
+        "rule_code": "POL-MED-01",
+    },
+]
+
 # Generic/placeholder alt text indicators
 PLACEHOLDER_ALT_PATTERNS = {
     "image",
@@ -131,6 +226,60 @@ def check_banned_terms(
     if not content:
         return findings
 
+    seen_flagged_spans = set()
+
+    # 1. Evaluate Core Deterministic Policy Patterns (Absolute Guarantees, Superlatives, Accreditations)
+    for d_pat in DEFAULT_DETERMINISTIC_PATTERNS:
+        for match in d_pat["pattern"].finditer(content):
+            span_key = (match.start(), match.end())
+            if span_key in seen_flagged_spans:
+                continue
+
+            # Evaluate contextual negation/disclaimer
+            if is_negated_or_disclaimed_context(content, match.start(), match.end()):
+                continue
+
+            seen_flagged_spans.add(span_key)
+            start = max(0, match.start() - 40)
+            end = min(len(content), match.end() + 40)
+            context_snippet = content[start:end].replace("\n", " ").strip()
+
+            # Correlate rule_id from prohibited_rules if available
+            correlated_rule_id = None
+            correlated_rule_code = d_pat.get("rule_code")
+            if prohibited_rules:
+                for r in prohibited_rules:
+                    r_id = getattr(r, "id", None) or (r.get("id") if isinstance(r, dict) else None)
+                    r_code = getattr(r, "rule_code", None) or (r.get("rule_code") if isinstance(r, dict) else None)
+                    r_text = (getattr(r, "rule_text", "") or (r.get("rule_text", "") if isinstance(r, dict) else "")).lower()
+                    r_title = (getattr(r, "title", "") or (r.get("title", "") if isinstance(r, dict) else "")).lower()
+
+                    # Check match between rule and detected violation category
+                    if (correlated_rule_code and r_code == correlated_rule_code) or \
+                       ("uptime" in r_text and "uptime" in match.group(0).lower()) or \
+                       ("breach" in r_text and "breach" in match.group(0).lower()) or \
+                       ("superlative" in r_text and ("#1" in match.group(0) or "number one" in match.group(0).lower() or "cheapest" in match.group(0).lower())) or \
+                       ("certif" in r_text and ("nasa" in match.group(0).lower() or "dod" in match.group(0).lower())):
+                        correlated_rule_id = r_id
+                        if r_code:
+                            correlated_rule_code = r_code
+                        break
+
+            findings.append({
+                "severity": d_pat["severity"],
+                "issue_type": d_pat["issue_type"],
+                "category": d_pat.get("category", "prohibited_claim"),
+                "flagged_text": match.group(0),
+                "explanation": d_pat["reason"],
+                "suggested_fix": d_pat["suggested_fix"],
+                "is_deterministic": True,
+                "cited_quote": f"...{context_snippet}...",
+                "rule_id": correlated_rule_id,
+                "rule_code": correlated_rule_code,
+                "user_action": "pending",
+            })
+
+    # 2. Extract and check custom prohibited terms, quoted phrases, and competitors
     terms_to_check: List[Dict[str, Any]] = []
 
     # Direct prohibited terms list
@@ -216,9 +365,15 @@ def check_banned_terms(
         # Use negative lookbehind for immediate preceding negations ("not", "no", "never", "without")
         pattern = re.compile(rf"(?<!\bnot\s)(?<!\bno\s)(?<!\bnever\s)(?<!\bwithout\s)\b{re.escape(term)}\b", re.IGNORECASE)
         for match in pattern.finditer(content):
+            span_key = (match.start(), match.end())
+            if span_key in seen_flagged_spans:
+                continue
+
             # Evaluate sentence-level semantic context: skip if disclaimed, negated, or comparative
             if is_negated_or_disclaimed_context(content, match.start(), match.end()):
                 continue
+
+            seen_flagged_spans.add(span_key)
 
             start = max(0, match.start() - 40)
             end = min(len(content), match.end() + 40)
