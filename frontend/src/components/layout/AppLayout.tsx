@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { NewReviewModal } from '../reviews/NewReviewModal';
+import { OnboardingTour } from '../common/OnboardingTour';
 
 export const AppLayout: React.FC = () => {
   const location = useLocation();
@@ -32,6 +33,9 @@ export const AppLayout: React.FC = () => {
 
       {/* Global New Review Modal */}
       <NewReviewModal />
+
+      {/* Global Onboarding Tour Walkthrough */}
+      <OnboardingTour />
     </div>
   );
 };

@@ -30,6 +30,9 @@ interface AppContextType {
   isNewReviewOpen: boolean;
   openNewReview: () => void;
   closeNewReview: () => void;
+  isOnboardingOpen: boolean;
+  openOnboarding: () => void;
+  closeOnboarding: () => void;
   backendConnected: boolean;
   isCheckingHealth: boolean;
   refreshHealth: () => Promise<void>;
@@ -40,6 +43,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentBrand, setCurrentBrand] = useState<BrandInfo>(AVAILABLE_BRANDS[0]);
   const [isNewReviewOpen, setIsNewReviewOpen] = useState(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [backendConnected, setBackendConnected] = useState(true);
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
 
@@ -93,9 +97,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     bootstrapAuth();
     checkHealth();
+
+    // Check if first-time visitor
+    const completed = localStorage.getItem('brandprint_onboarding_completed');
+    if (!completed) {
+      setIsOnboardingOpen(true);
+    }
+
     const interval = setInterval(checkHealth, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  const openOnboarding = () => setIsOnboardingOpen(true);
+  const closeOnboarding = () => {
+    setIsOnboardingOpen(false);
+    localStorage.setItem('brandprint_onboarding_completed', 'true');
+  };
 
   return (
     <AppContext.Provider
@@ -107,6 +124,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isNewReviewOpen,
         openNewReview: () => setIsNewReviewOpen(true),
         closeNewReview: () => setIsNewReviewOpen(false),
+        isOnboardingOpen,
+        openOnboarding,
+        closeOnboarding,
         backendConnected,
         isCheckingHealth,
         refreshHealth: checkHealth,

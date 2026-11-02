@@ -11,13 +11,14 @@ import {
   BookOpenCheck,
   LogOut,
   User,
+  HelpCircle,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { AITransparencyModal } from '../common/AITransparencyModal';
 
 export const TopBar: React.FC = () => {
-  const { currentBrand, setCurrentBrand, availableBrands, currentUser, openNewReview } = useApp();
+  const { currentBrand, setCurrentBrand, availableBrands, currentUser, openNewReview, openOnboarding } = useApp();
   const { user: authUser, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -154,6 +155,17 @@ export const TopBar: React.FC = () => {
 
       {/* Right: Primary Warm Amber CTA Button & User Profile Pill */}
       <div className="flex items-center gap-3">
+        {/* Platform Guide / Onboarding Tour Button */}
+        <button
+          onClick={openOnboarding}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-brand-sand hover:border-brand-amber/60 text-xs font-semibold text-brand-charcoal transition-all shadow-card-soft cursor-pointer hover:bg-brand-cream/60 active:scale-95"
+          title="Open New User Onboarding Tour & Platform Guide"
+          id="btn-platform-guide"
+        >
+          <HelpCircle className="w-3.5 h-3.5 text-brand-amber" />
+          <span className="hidden sm:inline">Platform Guide</span>
+        </button>
+
         {/* AI Transparency Audit Button */}
         <button
           onClick={() => setIsAuditModalOpen(true)}
@@ -255,6 +267,19 @@ export const TopBar: React.FC = () => {
                 >
                   <BookOpenCheck className="w-4 h-4 text-brand-ocean" />
                   <span className="font-medium">Organization Guidelines</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsUserMenuOpen(false);
+                    openOnboarding();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-brand-charcoal hover:bg-brand-cream transition-colors cursor-pointer"
+                  id="menu-platform-guide"
+                >
+                  <HelpCircle className="w-4 h-4 text-brand-amber" />
+                  <span className="font-medium">Platform Guide & Tour</span>
                 </button>
               </div>
 
