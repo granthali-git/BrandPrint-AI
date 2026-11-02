@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { NewReviewModal } from '../reviews/NewReviewModal';
 import { OnboardingTour } from '../common/OnboardingTour';
+import { WelcomeGuideModal } from '../common/WelcomeGuideModal';
 import { LiveDemoExperience } from '../demo/LiveDemoExperience';
 
 export const AppLayout: React.FC = () => {
@@ -37,6 +38,9 @@ export const AppLayout: React.FC = () => {
 
       {/* Global Onboarding Tour Walkthrough */}
       <OnboardingTour />
+
+      {/* Global Welcome Guide Modal with Voice Assistance */}
+      <WelcomeGuideModal />
 
       {/* Global Live Demo Experience */}
       <LiveDemoExperience />

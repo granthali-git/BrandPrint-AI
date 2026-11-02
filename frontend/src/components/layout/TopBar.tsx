@@ -169,9 +169,11 @@ export const TopBar: React.FC = () => {
 
         {/* Platform Guide / Onboarding Tour Button */}
         <button
-          onClick={openOnboarding}
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('open-platform-guide'));
+          }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-brand-sand hover:border-brand-amber/60 text-xs font-semibold text-brand-charcoal transition-all shadow-card-soft cursor-pointer hover:bg-brand-cream/60 active:scale-95"
-          title="Open New User Onboarding Tour & Platform Guide"
+          title="Open Platform Guide & Voice-Assisted Tour"
           id="btn-platform-guide"
         >
           <HelpCircle className="w-3.5 h-3.5 text-brand-amber" />
@@ -285,7 +287,7 @@ export const TopBar: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setIsUserMenuOpen(false);
-                    openOnboarding();
+                    window.dispatchEvent(new CustomEvent('open-platform-guide'));
                   }}
                   className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-brand-charcoal hover:bg-brand-cream transition-colors cursor-pointer"
                   id="menu-platform-guide"

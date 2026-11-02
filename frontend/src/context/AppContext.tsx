@@ -111,20 +111,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     bootstrapAuth();
     checkHealth();
 
-    // Check if first-time visitor
-    const completed = localStorage.getItem('brandprint_onboarding_completed');
-    if (!completed) {
-      setIsOnboardingOpen(true);
-    }
-
     const interval = setInterval(checkHealth, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  const openOnboarding = () => setIsOnboardingOpen(true);
+  const openOnboarding = () => {
+    window.dispatchEvent(new CustomEvent('open-platform-guide'));
+  };
   const closeOnboarding = () => {
     setIsOnboardingOpen(false);
     localStorage.setItem('brandprint_onboarding_completed', 'true');
+    localStorage.setItem('brandprint_guide_seen', 'true');
   };
 
   const startLiveDemo = () => {
