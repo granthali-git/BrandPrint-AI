@@ -7,9 +7,10 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 from sqlalchemy.orm import Session
 
+faiss = None
 try:
     import faiss
-except Exception as _faiss_err:
+except BaseException:
     faiss = None
 
 from app.models.guideline import GuidelineRule
@@ -152,13 +153,6 @@ def index_brand_rules(brand_id: Union[int, str], rules: List[Any]) -> int:
         return 0
 
     global faiss
-    if faiss is None:
-        try:
-            import faiss
-        except Exception as _err:
-            logger.warning(f"FAISS module unavailable: {_err}")
-            return 0
-
     normalized_rules = [_normalize_rule(r) for r in rules]
     rule_texts = [f"{r['title']}. {r['rule_text']}" for r in normalized_rules]
 
@@ -171,17 +165,24 @@ def index_brand_rules(brand_id: Union[int, str], rules: List[Any]) -> int:
         embeddings = _compute_lightweight_embeddings(rule_texts, dimension=384)
 
     dimension = embeddings.shape[1]
-    # Use IndexFlatIP for cosine similarity on unit-normalized vectors
-    index = faiss.IndexFlatIP(dimension)
-    index.add(embeddings)
+    index = None
+    if faiss is not None:
+        try:
+            index = faiss.IndexFlatIP(dimension)
+            index.add(embeddings)
+        except Exception as _f_err:
+            logger.debug(f"FAISS IndexFlatIP creation skipped: {_f_err}")
+            index = None
 
     _brand_indices[key] = {
         "index": index,
+        "embeddings": embeddings,
         "rules": normalized_rules,
         "rule_ids": [str(r["id"]) for r in normalized_rules],
         "dimension": dimension,
     }
-    logger.info(f"Indexed {len(rules)} rules for brand '{key}' into FAISS index.")
+    logger.info(f"Indexed {len(rules)} rules for brand '{key}' into vector store.")
+    return len(rules)
     return len(rules)
 
 
@@ -229,7 +230,8 @@ def retrieve_relevant_rules(
     if not brand_data or not brand_data.get("rules"):
         return []
 
-    index = brand_data["index"]
+    index = brand_data.get("index")
+    embeddings = brand_data.get("embeddings")
     rules = brand_data["rules"]
     candidate_k = min(max(top_k * 5, 25), len(rules))
 
@@ -241,8 +243,21 @@ def retrieve_relevant_rules(
         # Lightweight zero-RAM hashing embeddings
         query_vec = _compute_lightweight_embeddings([content_chunk], dimension=brand_data["dimension"])
 
-    distances, indices = index.search(query_vec, candidate_k)
-    matched_indices = indices[0]
+    matched_indices = None
+    if index is not None:
+        try:
+            distances, indices = index.search(query_vec, candidate_k)
+            matched_indices = indices[0]
+        except Exception as _s_err:
+            logger.debug(f"FAISS index search error: {_s_err}")
+            matched_indices = None
+
+    if matched_indices is None and embeddings is not None:
+        # Pure numpy dot-product (cosine similarity)
+        scores = np.dot(embeddings, query_vec.T).flatten()
+        matched_indices = np.argsort(-scores)[:candidate_k]
+    elif matched_indices is None:
+        matched_indices = list(range(min(candidate_k, len(rules))))
 
     matched_rules: List[Dict[str, Any]] = []
     seen_texts = set()

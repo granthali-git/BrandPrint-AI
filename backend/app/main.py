@@ -111,6 +111,7 @@ from app.core.security import get_current_user
 from app.models.user import User
 from app.schemas.guideline import ContradictionCheckRequest
 from app.routes.guidelines import check_contradictions as route_check_contradictions
+from app.routes.reviews import execute_contradiction_audit, ContradictionRequest
 
 @app.post("/api/check-contradictions", tags=["Guidelines"])
 @app.post("/check-contradictions", tags=["Guidelines"])
@@ -122,6 +123,14 @@ def check_contradictions_direct(
     db: Session = Depends(get_db)
 ):
     return route_check_contradictions(brand_id=brand_id, payload=payload, as_list=as_list, current_user=current_user, db=db)
+
+
+@app.post("/api/audit/contradictions", tags=["Audit"])
+@app.post("/api/reviews/contradictions", tags=["Reviews"])
+@app.post("/audit/contradictions", tags=["Audit"])
+@app.post("/reviews/contradictions", tags=["Reviews"])
+def execute_contradiction_audit_direct(payload: Optional[ContradictionRequest] = Body(default=None)):
+    return execute_contradiction_audit(payload)
 
 
 

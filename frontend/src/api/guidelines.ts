@@ -117,18 +117,26 @@ export const guidelinesApi = {
     brandId: number | string = 1,
     proposedRules?: any[]
   ): Promise<ContradictionsResponse | any> => {
-    const params = { brand_id: brandId };
-    const payload: any = { brand_id: brandId };
-    if (proposedRules && proposedRules.length > 0) {
-      payload.rules = proposedRules;
-      payload.new_statements = proposedRules;
+    try {
+      const response = await apiClient.post<any>('/api/audit/contradictions', {
+        brand_id: String(brandId),
+        guidelines: proposedRules || [],
+      });
+      return response.data;
+    } catch {
+      const params = { brand_id: brandId };
+      const payload: any = { brand_id: brandId };
+      if (proposedRules && proposedRules.length > 0) {
+        payload.rules = proposedRules;
+        payload.new_statements = proposedRules;
+      }
+      const response = await apiClient.post<ContradictionsResponse | any>(
+        '/api/guidelines/check-contradictions',
+        payload,
+        { params }
+      );
+      return response.data;
     }
-    const response = await apiClient.post<ContradictionsResponse | any>(
-      '/api/guidelines/check-contradictions',
-      payload,
-      { params }
-    );
-    return response.data;
   },
 
   /**

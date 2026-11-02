@@ -266,10 +266,12 @@ export interface ContradictionPair {
   contradiction_reason?: string;
   conflict_type?: string;
   tension_type?: 'Direct Conflict' | 'Policy Paradox' | 'Regulatory Overreach' | string;
+  category?: string;
   severity?: 'critical' | 'high' | 'medium' | 'low';
   explanation?: string;
   conflict_explanation?: string;
   suggested_resolution?: string;
+  suggested_harmonization?: string;
   recommendation?: string;
   status?: string;
 }
