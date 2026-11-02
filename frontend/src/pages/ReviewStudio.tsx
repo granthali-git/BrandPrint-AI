@@ -23,6 +23,8 @@ import {
   MessageSquare,
   Lock,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Sparkle,
   Layers,
   Printer,
@@ -61,6 +63,8 @@ export const ReviewStudio: React.FC = () => {
   const [urlInput, setUrlInput] = useState('');
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evalError, setEvalError] = useState<string | null>(null);
+  const [isInputCollapsed, setIsInputCollapsed] = useState<boolean>(true);
+  const [isWhatIfOpen, setIsWhatIfOpen] = useState<boolean>(false);
 
   // Review & Findings State
   const [reviewData, setReviewData] = useState<ReviewResponse | null>(null);
@@ -134,6 +138,7 @@ export const ReviewStudio: React.FC = () => {
 
       if (results && (results.findings || results.compliance_score !== undefined)) {
         setReviewData(results);
+        setIsInputCollapsed(true);
         if (results.findings && results.findings.length > 0) {
           setSelectedFindingId(results.findings[0].id);
         }
@@ -183,6 +188,7 @@ export const ReviewStudio: React.FC = () => {
     try {
       const data = await reviewsApi.getById(id);
       setReviewData(data);
+      setIsInputCollapsed(true);
       const text = data.extracted_text || data.submission?.raw_content || '';
       setActiveContent(text);
       setRawText(text);
@@ -421,6 +427,7 @@ export const ReviewStudio: React.FC = () => {
 
       const result = await reviewsApi.submitReview(formData);
       setReviewData(result);
+      setIsInputCollapsed(true);
       const extracted = result.extracted_text || (inputTab === 'text' ? rawText : '');
       setActiveContent(extracted);
       setSearchParams({ id: String(result.submission.id) });
@@ -840,7 +847,7 @@ export const ReviewStudio: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200 text-brand-charcoal">
+    <div className="h-[calc(100vh-4rem)] overflow-hidden flex flex-col text-brand-charcoal space-y-3 pb-2 animate-in fade-in duration-200">
       {/* Toast Notification */}
       {decisionToast && (
         <div className="fixed top-20 right-8 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-brand-oceanDark border border-brand-amber/40 text-xs text-white shadow-2xl animate-in slide-in-from-top-4 duration-200">
@@ -856,7 +863,7 @@ export const ReviewStudio: React.FC = () => {
       )}
 
       {/* Top Header & Human Governance Actions */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-brand-sand">
+      <div className="shrink-0 flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-brand-sand">
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold tracking-tight text-brand-charcoal flex items-center gap-2">
@@ -900,6 +907,17 @@ export const ReviewStudio: React.FC = () => {
           )}
 
           <button
+            type="button"
+            onClick={() => setIsWhatIfOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 text-xs font-bold transition-all shadow-card-soft active:scale-95 cursor-pointer"
+            id="btn-whatif-simulator"
+            title="Open What-If Compliance Simulator to test revisions without saving"
+          >
+            <SlidersHorizontal className="w-4 h-4 text-purple-600" />
+            <span>What-If Simulator</span>
+          </button>
+
+          <button
             onClick={handleOpenCertificate}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand-ocean hover:bg-brand-oceanDark text-white border border-brand-oceanLight text-xs font-bold transition-all shadow-card-elevated active:scale-95 cursor-pointer"
             id="btn-compliance-certificate"
@@ -938,57 +956,88 @@ export const ReviewStudio: React.FC = () => {
       </div>
 
       {/* 1. Multi-Format Input Section (Collapsible / Clean) */}
-      <div className="bg-white rounded-2xl p-6 border border-brand-sand shadow-card-soft space-y-4">
-        {/* Segmented Control Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono uppercase tracking-wider text-brand-charcoalMuted font-bold">
-              Input Modality:
+      {isInputCollapsed ? (
+        <div className="shrink-0 bg-white rounded-xl px-4 py-2 border border-brand-sand shadow-card-soft flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="text-[11px] font-mono font-bold text-brand-charcoal uppercase tracking-wider shrink-0">
+              Active Asset:
             </span>
-            <div className="flex items-center p-1 rounded-xl bg-brand-cream border border-brand-sand">
-              <button
-                type="button"
-                onClick={() => setInputTab('text')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                  inputTab === 'text'
-                    ? 'bg-brand-ocean text-white shadow-sm'
-                    : 'text-brand-charcoalMuted hover:text-brand-charcoal'
-                }`}
-              >
-                <FileText className="w-3.5 h-3.5" />
-                <span>Raw Text</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setInputTab('file')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                  inputTab === 'file'
-                    ? 'bg-brand-ocean text-white shadow-sm'
-                    : 'text-brand-charcoalMuted hover:text-brand-charcoal'
-                }`}
-              >
-                <UploadCloud className="w-3.5 h-3.5" />
-                <span>File Upload</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setInputTab('url')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                  inputTab === 'url'
-                    ? 'bg-brand-ocean text-white shadow-sm'
-                    : 'text-brand-charcoalMuted hover:text-brand-charcoal'
-                }`}
-              >
-                <Globe className="w-3.5 h-3.5" />
-                <span>Web Scraping</span>
-              </button>
-            </div>
+            <span className="text-xs text-brand-charcoal truncate font-mono bg-brand-cream px-2 py-0.5 rounded border border-brand-sand max-w-md">
+              {inputTab === 'text'
+                ? (rawText.length > 80 ? rawText.slice(0, 80) + '...' : rawText)
+                : inputTab === 'file'
+                ? (selectedFile?.name || 'Uploaded File')
+                : (urlInput || 'Web URL')}
+            </span>
+            <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold border border-emerald-200 hidden sm:inline-flex items-center gap-1 shrink-0">
+              <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Audited
+            </span>
           </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsInputCollapsed(false)}
+              className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-semibold text-brand-ocean hover:bg-brand-cream border border-brand-sand transition-colors cursor-pointer"
+              title="Expand input panel to edit text, upload a new asset, or enter a new URL"
+              id="btn-expand-input"
+            >
+              <ChevronDown className="w-3.5 h-3.5 text-brand-ocean" />
+              <span>New Audit / Ingestion</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="shrink-0 bg-white rounded-2xl p-4 sm:p-5 border border-brand-sand shadow-card-soft space-y-3 max-h-[340px] overflow-y-auto custom-scroll">
+          {/* Segmented Control Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono uppercase tracking-wider text-brand-charcoalMuted font-bold">
+                Input Modality:
+              </span>
+              <div className="flex items-center p-1 rounded-xl bg-brand-cream border border-brand-sand">
+                <button
+                  type="button"
+                  onClick={() => setInputTab('text')}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    inputTab === 'text'
+                      ? 'bg-brand-ocean text-white shadow-sm'
+                      : 'text-brand-charcoalMuted hover:text-brand-charcoal'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Raw Text</span>
+                </button>
 
-          {/* Quick Presets & Helpers */}
-          <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setInputTab('file')}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    inputTab === 'file'
+                      ? 'bg-brand-ocean text-white shadow-sm'
+                      : 'text-brand-charcoalMuted hover:text-brand-charcoal'
+                  }`}
+                >
+                  <UploadCloud className="w-3.5 h-3.5" />
+                  <span>File Upload</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setInputTab('url')}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    inputTab === 'url'
+                      ? 'bg-brand-ocean text-white shadow-sm'
+                      : 'text-brand-charcoalMuted hover:text-brand-charcoal'
+                  }`}
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>Web Scraping</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Presets & Collapse Button */}
+            <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
               onClick={() => {
@@ -1072,6 +1121,17 @@ export const ReviewStudio: React.FC = () => {
             >
               <BookOpen className="w-3 h-3 text-brand-ocean" />
               Sample Multi-Page PDF
+            </button>
+            <span className="text-brand-sand">•</span>
+            <button
+              type="button"
+              onClick={() => setIsInputCollapsed(true)}
+              className="flex items-center gap-1 text-[11px] font-mono text-brand-charcoalMuted hover:text-brand-charcoal px-2 py-0.5 rounded border border-brand-sand hover:bg-brand-cream transition-colors cursor-pointer"
+              title="Collapse input panel"
+              id="btn-collapse-input"
+            >
+              <ChevronUp className="w-3.5 h-3.5" />
+              <span>Collapse</span>
             </button>
           </div>
         </div>
@@ -1314,11 +1374,12 @@ export const ReviewStudio: React.FC = () => {
           </button>
         </div>
       </div>
+      )}
 
       {/* 2. Evidence-First Results View (Split Layout) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
         {/* Left Pane: Submitted Content with Interactive Highlights & Poster Visual Preview (6 Cols) */}
-        <div className="lg:col-span-6 bg-white rounded-2xl p-6 border border-brand-sand shadow-card-soft space-y-4 sticky top-20">
+        <div className="lg:col-span-6 h-full min-h-0 flex flex-col bg-white rounded-2xl p-5 border border-brand-sand shadow-card-soft overflow-hidden">
           {(() => {
             const previewImgUrl =
               reviewData?.image_preview_url ||
@@ -1332,7 +1393,7 @@ export const ReviewStudio: React.FC = () => {
 
             return (
               <>
-                <div className="flex items-center justify-between border-b border-brand-sand pb-3 flex-wrap gap-2">
+                <div className="shrink-0 flex items-center justify-between border-b border-brand-sand pb-3 flex-wrap gap-2 mb-3">
                   <div className="flex items-center gap-2">
                     {reviewData?.submission?.content_type === 'url' ? (
                       <Globe className="w-4 h-4 text-brand-ocean" />
@@ -1387,121 +1448,124 @@ export const ReviewStudio: React.FC = () => {
                   )}
                 </div>
 
-                {reviewData?.submission?.content_type === 'url' && !previewImgUrl && (
-                  <div className="p-3 rounded-xl bg-brand-oceanLight/10 border border-brand-ocean/20 text-xs text-brand-ocean flex items-start gap-2.5">
-                    <Globe className="w-4 h-4 text-brand-ocean shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-brand-charcoal flex items-center justify-between gap-2">
-                        <span>Extracted Webpage Copy</span>
-                        <span className="text-[10px] font-mono text-brand-charcoalMuted">
-                          {activeContent.split(/\s+/).filter(Boolean).length} words extracted
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-brand-charcoalMuted truncate mt-0.5 font-mono">
-                        Clean DOM text parsed via Trafilatura & HTML Parser
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {previewImgUrl && leftPaneTab === 'visual' ? (
-                  <div className="space-y-3.5">
-                    {/* Visual Analysis Status Banner */}
-                    {visualStatus === 'complete' ? (
-                      <div className="p-3 rounded-xl bg-emerald-50/90 border border-emerald-200 text-xs text-emerald-950 flex items-start gap-2.5 shadow-2xs">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                        <div>
-                          <div className="font-bold flex items-center gap-2">
-                            Multimodal Visual Analysis: Complete
-                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-200 text-emerald-950 font-bold uppercase tracking-wider">
-                              Verified
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-emerald-800 mt-0.5 leading-relaxed">
-                            {visualMsg ||
-                              `Evaluated logo integrity, color harmony, typography hierarchy, and WCAG contrast against ${currentBrand.name} guidelines.`}
-                          </p>
-                        </div>
-                      </div>
-                    ) : visualStatus === 'incomplete' ? (
-                      <div className="p-3 rounded-xl bg-amber-50/90 border border-amber-200 text-xs text-amber-950 flex items-start gap-2.5 shadow-2xs">
-                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                        <div>
-                          <div className="font-bold flex items-center gap-2">
-                            Multimodal Visual Analysis: Incomplete
-                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-200 text-amber-950 font-bold uppercase tracking-wider">
-                              Partial Heuristics
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
-                            {visualMsg ||
-                              'Multimodal AI model was unavailable or rate-limited. Deterministic visual contrast & claim heuristics applied.'}
-                          </p>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {/* Poster Image Container */}
-                    <div className="relative rounded-xl border border-brand-sand bg-brand-cream/30 p-2 overflow-hidden flex items-center justify-center min-h-[340px] max-h-[520px]">
-                      <img
-                        src={previewImgUrl}
-                        alt="Uploaded Poster Creative"
-                        className="max-h-[500px] w-auto max-w-full rounded-lg object-contain shadow-md transition-transform duration-200 hover:scale-[1.01]"
-                      />
-                    </div>
-
-                    {/* Visual Elements Pill Bar */}
-                    <div className="flex items-center justify-between text-[11px] font-mono text-brand-charcoalMuted pt-1 flex-wrap gap-2">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-brand-charcoal">Visual Findings:</span>
-                        {visualFindingsList.length > 0 ? (
-                          visualFindingsList.map((vf) => (
-                            <button
-                              key={vf.id}
-                              type="button"
-                              onClick={() => handleSelectFinding(vf.id)}
-                              className="px-2 py-0.5 rounded bg-purple-50 text-purple-900 border border-purple-200 text-[10px] font-bold hover:bg-purple-100 transition-colors cursor-pointer"
-                            >
-                              📍 {vf.visual_element || vf.issue_type}
-                            </button>
-                          ))
-                        ) : (
-                          <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                            <Check className="w-3.5 h-3.5" /> No visual defects detected
+                {/* Left Column Scrollable Body */}
+                <div className="h-full overflow-y-auto pr-3 custom-scroll flex-1 min-h-0 space-y-4">
+                  {reviewData?.submission?.content_type === 'url' && !previewImgUrl && (
+                    <div className="p-3 rounded-xl bg-brand-oceanLight/10 border border-brand-ocean/20 text-xs text-brand-ocean flex items-start gap-2.5">
+                      <Globe className="w-4 h-4 text-brand-ocean shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-brand-charcoal flex items-center justify-between gap-2">
+                          <span>Extracted Webpage Copy</span>
+                          <span className="text-[10px] font-mono text-brand-charcoalMuted">
+                            {activeContent.split(/\s+/).filter(Boolean).length} words extracted
                           </span>
-                        )}
+                        </div>
+                        <p className="text-[11px] text-brand-charcoalMuted truncate mt-0.5 font-mono">
+                          Clean DOM text parsed via Trafilatura & HTML Parser
+                        </p>
                       </div>
-                      <span className="text-[10px] italic">Multimodal Vision Grounding</span>
                     </div>
-                  </div>
-                ) : (
-                  <>
-                    <div
-                      ref={contentPaneRef}
-                      className="p-4 rounded-xl bg-brand-cream/50 border border-brand-sand min-h-[320px] max-h-[580px] overflow-y-auto leading-relaxed"
-                    >
-                      {renderHighlightedContent()}
-                    </div>
+                  )}
 
-                    {/* Quick Guidance bar */}
-                    <div className="flex items-center justify-between text-[11px] font-mono text-brand-charcoalMuted pt-1">
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Critical
-                        <span className="w-2 h-2 rounded-full bg-brand-amber inline-block ml-1.5" /> High
-                        <span className="w-2 h-2 rounded-full bg-yellow-500 inline-block ml-1.5" /> Medium
-                      </span>
-                      <span>Click any highlighted phrase to jump to its policy citation</span>
+                  {previewImgUrl && leftPaneTab === 'visual' ? (
+                    <div className="space-y-3.5">
+                      {/* Visual Analysis Status Banner */}
+                      {visualStatus === 'complete' ? (
+                        <div className="p-3 rounded-xl bg-emerald-50/90 border border-emerald-200 text-xs text-emerald-950 flex items-start gap-2.5 shadow-2xs">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                          <div>
+                            <div className="font-bold flex items-center gap-2">
+                              Multimodal Visual Analysis: Complete
+                              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-200 text-emerald-950 font-bold uppercase tracking-wider">
+                                Verified
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-emerald-800 mt-0.5 leading-relaxed">
+                              {visualMsg ||
+                                `Evaluated logo integrity, color harmony, typography hierarchy, and WCAG contrast against ${currentBrand.name} guidelines.`}
+                            </p>
+                          </div>
+                        </div>
+                      ) : visualStatus === 'incomplete' ? (
+                        <div className="p-3 rounded-xl bg-amber-50/90 border border-amber-200 text-xs text-amber-950 flex items-start gap-2.5 shadow-2xs">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <div className="font-bold flex items-center gap-2">
+                              Multimodal Visual Analysis: Incomplete
+                              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-200 text-amber-950 font-bold uppercase tracking-wider">
+                                Partial Heuristics
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                              {visualMsg ||
+                                'Multimodal AI model was unavailable or rate-limited. Deterministic visual contrast & claim heuristics applied.'}
+                            </p>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {/* Poster Image Container */}
+                      <div className="relative rounded-xl border border-brand-sand bg-brand-cream/30 p-2 overflow-hidden flex items-center justify-center min-h-[300px]">
+                        <img
+                          src={previewImgUrl}
+                          alt="Uploaded Poster Creative"
+                          className="max-h-[460px] w-auto max-w-full rounded-lg object-contain shadow-md transition-transform duration-200 hover:scale-[1.01]"
+                        />
+                      </div>
+
+                      {/* Visual Elements Pill Bar */}
+                      <div className="flex items-center justify-between text-[11px] font-mono text-brand-charcoalMuted pt-1 flex-wrap gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-brand-charcoal">Visual Findings:</span>
+                          {visualFindingsList.length > 0 ? (
+                            visualFindingsList.map((vf) => (
+                              <button
+                                key={vf.id}
+                                type="button"
+                                onClick={() => handleSelectFinding(vf.id)}
+                                className="px-2 py-0.5 rounded bg-purple-50 text-purple-900 border border-purple-200 text-[10px] font-bold hover:bg-purple-100 transition-colors cursor-pointer"
+                              >
+                                📍 {vf.visual_element || vf.issue_type}
+                              </button>
+                            ))
+                          ) : (
+                            <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                              <Check className="w-3.5 h-3.5" /> No visual defects detected
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] italic">Multimodal Vision Grounding</span>
+                      </div>
                     </div>
-                  </>
-                )}
+                  ) : (
+                    <>
+                      <div
+                        ref={contentPaneRef}
+                        className="p-4 rounded-xl bg-brand-cream/50 border border-brand-sand leading-relaxed min-h-[200px]"
+                      >
+                        {renderHighlightedContent()}
+                      </div>
+
+                      {/* Quick Guidance bar */}
+                      <div className="flex items-center justify-between text-[11px] font-mono text-brand-charcoalMuted pt-1">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Critical
+                          <span className="w-2 h-2 rounded-full bg-brand-amber inline-block ml-1.5" /> High
+                          <span className="w-2 h-2 rounded-full bg-yellow-500 inline-block ml-1.5" /> Medium
+                        </span>
+                        <span>Click any highlighted phrase to jump to its policy citation</span>
+                      </div>
+                    </>
+                  )}
+                </div>
               </>
             );
           })()}
         </div>
 
         {/* Right Pane: Findings & Evidence List (6 Cols) */}
-        <div className="lg:col-span-6 space-y-4">
-          <div className="flex flex-col gap-3 border-b border-brand-sand pb-3.5">
+        <div className="lg:col-span-6 h-full min-h-0 flex flex-col bg-white rounded-2xl p-5 border border-brand-sand shadow-card-soft overflow-hidden">
+          <div className="shrink-0 flex flex-col gap-2.5 border-b border-brand-sand pb-3 mb-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <ShieldAlert className="w-4 h-4 text-brand-ocean" />
@@ -1561,75 +1625,101 @@ export const ReviewStudio: React.FC = () => {
             </div>
           </div>
 
-          {filteredFindings.length === 0 ? (
-            <div className="bg-white rounded-2xl p-10 text-center border border-brand-sand shadow-card-soft">
-              <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto mb-2.5" />
-              <h3 className="text-sm font-bold text-brand-charcoal">No Violations Found</h3>
-              <p className="text-xs text-brand-charcoalMuted mt-1">
-                The content complies with all active {currentBrand.name} guidelines.
-              </p>
-            </div>
-          ) : (
-            filteredFindings.map((finding) => {
-              const ruleCode =
-                finding.rule?.rule_code ||
-                (finding.explanation?.match(/PROHIBIT-\d+|FACT-\d+|TONE-\d+|VISUAL-\d+|ACCESS-\d+|RULE-[A-Z0-9-]+/i)?.[0]) ||
-                'RULE-001';
+          {/* Right Column Scrollable Findings Body */}
+          <div className="h-full overflow-y-auto pl-2 pr-3 scrollbar-thin scrollbar-thumb-slate-200 custom-scroll flex-1 min-h-0 space-y-4">
+            {filteredFindings.length === 0 ? (
+              <div className="p-8 text-center border border-brand-sand rounded-xl bg-brand-cream/30">
+                <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto mb-2.5" />
+                <h3 className="text-sm font-bold text-brand-charcoal">No Violations Found</h3>
+                <p className="text-xs text-brand-charcoalMuted mt-1">
+                  The content complies with all active {currentBrand.name} guidelines.
+                </p>
+              </div>
+            ) : (
+              filteredFindings.map((finding) => {
+                const ruleCode =
+                  finding.rule?.rule_code ||
+                  (finding.explanation?.match(/PROHIBIT-\d+|FACT-\d+|TONE-\d+|VISUAL-\d+|ACCESS-\d+|RULE-[A-Z0-9-]+/i)?.[0]) ||
+                  'RULE-001';
 
-              return (
-                <div
-                  key={finding.id}
-                  ref={(el) => {
-                    findingCardsRef.current[finding.id] = el;
-                  }}
-                >
-                  <FindingCard
-                    finding={finding}
-                    isSelected={selectedFindingId === finding.id}
-                    onSelect={() => setSelectedFindingId(finding.id)}
-                    onAcceptFix={handleAcceptFix}
-                    onPreviewSwap={handlePreviewSwap}
-                    ruleCode={ruleCode}
-                  />
-                </div>
-              );
-            })
-          )}
+                return (
+                  <div
+                    key={finding.id}
+                    ref={(el) => {
+                      findingCardsRef.current[finding.id] = el;
+                    }}
+                  >
+                    <FindingCard
+                      finding={finding}
+                      isSelected={selectedFindingId === finding.id}
+                      onSelect={() => setSelectedFindingId(finding.id)}
+                      onAcceptFix={handleAcceptFix}
+                      onPreviewSwap={handlePreviewSwap}
+                      ruleCode={ruleCode}
+                    />
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
 
       {/* 3. Interactive What-If Simulator Section */}
-      <div id="what-if-simulator-section">
-        <WhatIfSimulator
-          submissionId={reviewData?.submission?.id || 1}
-          originalContent={activeContent}
-          initialRevisedContent={activeContent}
-          originalFindings={reviewData?.findings || []}
-          onCommitRevision={(revisedText, remainingFindings) => {
-            setActiveContent(revisedText);
-            setRawText(revisedText);
-            setReviewData((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    submission: {
-                      ...prev.submission,
-                      current_version: 2,
-                      raw_content: revisedText,
-                      status: remainingFindings.length === 0 ? 'approved' : 'changes_required',
-                    },
-                    extracted_text: revisedText,
-                    findings: remainingFindings,
-                    total_findings: remainingFindings.length,
-                  }
-                : prev
-            );
-            setDecisionToast({
-              type: 'success',
-              msg: `Committed Revision to Version 2! Active content updated with ${remainingFindings.length} remaining findings.`,
-            });
-          }}
-        />
+      <div
+        id="what-if-simulator-section"
+        className={
+          isWhatIfOpen
+            ? 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-oceanDark/60 backdrop-blur-sm animate-in fade-in duration-150'
+            : 'hidden'
+        }
+      >
+        <div className="w-full max-w-5xl max-h-[90vh] overflow-y-auto custom-scroll rounded-2xl bg-white border border-brand-sand shadow-2xl p-6 relative">
+          <div className="flex items-center justify-between pb-3 mb-4 border-b border-brand-sand">
+            <h2 className="text-base font-bold text-brand-charcoal flex items-center gap-2">
+              <SlidersHorizontal className="w-5 h-5 text-brand-ocean" />
+              Interactive What-If Compliance Simulator
+            </h2>
+            <button
+              onClick={() => setIsWhatIfOpen(false)}
+              className="p-1 rounded-lg text-brand-charcoalMuted hover:text-brand-charcoal cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <WhatIfSimulator
+            submissionId={reviewData?.submission?.id || 1}
+            originalContent={activeContent}
+            initialRevisedContent={activeContent}
+            originalFindings={reviewData?.findings || []}
+            onClose={() => setIsWhatIfOpen(false)}
+            onCommitRevision={(revisedText, remainingFindings) => {
+              setActiveContent(revisedText);
+              setRawText(revisedText);
+              setReviewData((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      submission: {
+                        ...prev.submission,
+                        current_version: 2,
+                        raw_content: revisedText,
+                        status: remainingFindings.length === 0 ? 'approved' : 'changes_required',
+                      },
+                      extracted_text: revisedText,
+                      findings: remainingFindings,
+                      total_findings: remainingFindings.length,
+                    }
+                  : prev
+              );
+              setDecisionToast({
+                type: 'success',
+                msg: `Committed Revision to Version 2! Active content updated with ${remainingFindings.length} remaining findings.`,
+              });
+              setIsWhatIfOpen(false);
+            }}
+          />
+        </div>
       </div>
 
       {/* 4. Governance Decision Confirmation Modal */}
