@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { NewReviewModal } from '../reviews/NewReviewModal';
 import { OnboardingTour } from '../common/OnboardingTour';
+import { LiveDemoExperience } from '../demo/LiveDemoExperience';
 
 export const AppLayout: React.FC = () => {
   const location = useLocation();
@@ -36,6 +37,9 @@ export const AppLayout: React.FC = () => {
 
       {/* Global Onboarding Tour Walkthrough */}
       <OnboardingTour />
+
+      {/* Global Live Demo Experience */}
+      <LiveDemoExperience />
     </div>
   );
 };

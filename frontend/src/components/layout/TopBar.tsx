@@ -12,13 +12,14 @@ import {
   LogOut,
   User,
   HelpCircle,
+  Play,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { AITransparencyModal } from '../common/AITransparencyModal';
 
 export const TopBar: React.FC = () => {
-  const { currentBrand, setCurrentBrand, availableBrands, currentUser, openNewReview, openOnboarding } = useApp();
+  const { currentBrand, setCurrentBrand, availableBrands, currentUser, openNewReview, openOnboarding, startLiveDemo } = useApp();
   const { user: authUser, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -155,6 +156,17 @@ export const TopBar: React.FC = () => {
 
       {/* Right: Primary Warm Amber CTA Button & User Profile Pill */}
       <div className="flex items-center gap-3">
+        {/* Watch Live Demo CTA Header Button */}
+        <button
+          onClick={startLiveDemo}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-brand-amber/15 to-brand-amber/30 border border-brand-amber/80 text-xs font-bold text-brand-oceanDark hover:bg-brand-amber hover:text-white transition-all shadow-card-soft cursor-pointer active:scale-95 group"
+          title="Launch Autonomous Interactive Working Demo"
+          id="btn-topbar-live-demo"
+        >
+          <Play className="w-3.5 h-3.5 text-brand-amber group-hover:text-white fill-current" />
+          <span className="hidden sm:inline">Live Demo</span>
+        </button>
+
         {/* Platform Guide / Onboarding Tour Button */}
         <button
           onClick={openOnboarding}
@@ -280,6 +292,19 @@ export const TopBar: React.FC = () => {
                 >
                   <HelpCircle className="w-4 h-4 text-brand-amber" />
                   <span className="font-medium">Platform Guide & Tour</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsUserMenuOpen(false);
+                    startLiveDemo();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-left text-brand-amberHover hover:bg-brand-amberLight/40 transition-colors cursor-pointer font-semibold"
+                  id="menu-live-demo"
+                >
+                  <Play className="w-4 h-4 text-brand-amber fill-current" />
+                  <span>Watch Live Demo</span>
                 </button>
               </div>
 

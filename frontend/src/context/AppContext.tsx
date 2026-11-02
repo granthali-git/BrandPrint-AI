@@ -33,6 +33,15 @@ interface AppContextType {
   isOnboardingOpen: boolean;
   openOnboarding: () => void;
   closeOnboarding: () => void;
+  isLiveDemoActive: boolean;
+  startLiveDemo: () => void;
+  stopLiveDemo: () => void;
+  demoStep: number;
+  setDemoStep: (step: number) => void;
+  isDemoPaused: boolean;
+  setDemoPaused: (paused: boolean | ((prev: boolean) => boolean)) => void;
+  demoSpeed: number;
+  setDemoSpeed: (speed: number) => void;
   backendConnected: boolean;
   isCheckingHealth: boolean;
   refreshHealth: () => Promise<void>;
@@ -44,6 +53,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentBrand, setCurrentBrand] = useState<BrandInfo>(AVAILABLE_BRANDS[0]);
   const [isNewReviewOpen, setIsNewReviewOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [isLiveDemoActive, setIsLiveDemoActive] = useState(false);
+  const [demoStep, setDemoStep] = useState(1);
+  const [isDemoPaused, setIsDemoPaused] = useState(false);
+  const [demoSpeed, setDemoSpeed] = useState(1);
   const [backendConnected, setBackendConnected] = useState(true);
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
 
@@ -114,6 +127,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('brandprint_onboarding_completed', 'true');
   };
 
+  const startLiveDemo = () => {
+    setIsOnboardingOpen(false);
+    setDemoStep(1);
+    setIsDemoPaused(false);
+    setIsLiveDemoActive(true);
+  };
+
+  const stopLiveDemo = () => {
+    setIsLiveDemoActive(false);
+    setIsDemoPaused(false);
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -127,6 +152,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isOnboardingOpen,
         openOnboarding,
         closeOnboarding,
+        isLiveDemoActive,
+        startLiveDemo,
+        stopLiveDemo,
+        demoStep,
+        setDemoStep,
+        isDemoPaused,
+        setDemoPaused: setIsDemoPaused,
+        demoSpeed,
+        setDemoSpeed,
         backendConnected,
         isCheckingHealth,
         refreshHealth: checkHealth,

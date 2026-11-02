@@ -22,6 +22,7 @@ import {
   Lock,
   Check,
   Compass,
+  Play,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
@@ -126,7 +127,7 @@ const TOUR_STEPS: TourStep[] = [
 ];
 
 export const OnboardingTour: React.FC = () => {
-  const { isOnboardingOpen, closeOnboarding } = useApp();
+  const { isOnboardingOpen, closeOnboarding, startLiveDemo } = useApp();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const navigate = useNavigate();
 
@@ -243,7 +244,8 @@ export const OnboardingTour: React.FC = () => {
           {/* Visual Interactive Showcase Card */}
           <div className="rounded-2xl border border-brand-sand bg-brand-cream/40 p-5 space-y-4 shadow-inner">
             {currentStep.visualType === 'welcome' && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="bg-white p-3.5 rounded-xl border border-brand-sand shadow-sm space-y-1">
                   <div className="flex items-center justify-between text-xs font-bold text-brand-ocean">
                     <span>Multi-Modal OCR</span>
@@ -272,6 +274,36 @@ export const OnboardingTour: React.FC = () => {
                   </p>
                 </div>
               </div>
+
+              {/* Prominent Live Demo Feature Banner on Welcome Screen */}
+              <div className="mt-4 p-4 rounded-2xl bg-gradient-to-r from-brand-oceanDark to-brand-ocean border border-brand-amber/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-white shadow-md">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-brand-amber flex items-center gap-1.5 uppercase font-mono tracking-wider">
+                      <Sparkles className="w-3.5 h-3.5" /> Autonomous Tour
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                      Live Working APIs
+                    </span>
+                  </div>
+                  <p className="text-xs text-brand-sand leading-relaxed">
+                    Sit back and watch BrandPrint AI autonomously audit guidelines, evaluate marketing copy, and benchmark 3-way assets in real-time.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeOnboarding();
+                    startLiveDemo();
+                  }}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-brand-amber hover:bg-brand-amberHover text-white text-xs font-bold shadow-md transition-all active:scale-95 shrink-0 cursor-pointer border border-white/20"
+                  id="btn-welcome-hero-live-demo"
+                >
+                  <Play className="w-3.5 h-3.5 fill-white text-white" />
+                  <span>WATCH LIVE DEMO</span>
+                </button>
+              </div>
+            </>
             )}
 
             {currentStep.visualType === 'sidebar' && (
@@ -441,6 +473,23 @@ export const OnboardingTour: React.FC = () => {
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Previous</span>
+              </button>
+            )}
+
+            {/* Live Demo button on Welcome Step (Step 1) and Final Step (Step 5) */}
+            {(isFirstStep || isLastStep) && (
+              <button
+                type="button"
+                onClick={() => {
+                  closeOnboarding();
+                  startLiveDemo();
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-brand-amber via-amber-500 to-brand-amberHover text-white text-xs font-bold shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer ring-2 ring-brand-amber/40 hover:ring-brand-amber"
+                id="btn-onboarding-watch-live-demo-footer"
+                title="Watch autonomous live working product demonstration"
+              >
+                <Play className="w-3.5 h-3.5 fill-white text-white" />
+                <span>WATCH LIVE DEMO</span>
               </button>
             )}
 
