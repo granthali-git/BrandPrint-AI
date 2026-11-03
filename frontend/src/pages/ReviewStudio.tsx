@@ -1300,9 +1300,12 @@ export const ReviewStudio: React.FC = () => {
               </span>
             </div>
             <div className="flex items-center justify-between flex-wrap gap-2 pt-0.5">
-              <p className="text-[11px] text-brand-charcoalMuted font-mono">
-                Scrapes public HTML pages, extracts clean readable copy, checks image contrast, and audits claims against active guidelines.
-              </p>
+              <div className="flex items-center gap-1.5 text-[11px] text-amber-700 font-medium">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
+                <span>
+                  <strong>Note:</strong> Only concise/short URLs are applicable. Heavy, multi-page, or excessively large URLs are not supported for rapid scraping.
+                </span>
+              </div>
               <div className="flex items-center gap-2 text-[11px] font-mono">
                 <span className="text-brand-charcoalMuted">Quick Fill:</span>
                 <button

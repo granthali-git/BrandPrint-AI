@@ -356,9 +356,12 @@ export const NewReviewModal: React.FC = () => {
                 placeholder="https://example.com/landing-page"
                 className="w-full rounded-xl bg-brand-cream border border-brand-sand px-3.5 py-2.5 text-xs text-brand-charcoal placeholder-brand-charcoalMuted focus:outline-none focus:ring-1 focus:ring-brand-amber font-mono"
               />
-              <p className="mt-1.5 text-[11px] text-brand-charcoalMuted">
-                BrandPrint AI extracts readable HTML, checks image contrast, and scans all claims.
-              </p>
+              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-amber-700 font-medium">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
+                <span>
+                  <strong>Note:</strong> Only concise/short URLs are applicable. Heavy, multi-page, or excessively large URLs are not supported for rapid scraping.
+                </span>
+              </div>
             </div>
           )}
 
