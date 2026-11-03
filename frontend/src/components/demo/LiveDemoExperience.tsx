@@ -29,6 +29,8 @@ import {
   Info,
   Check,
   ExternalLink,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { guidelinesApi } from '../../api/guidelines';
@@ -43,6 +45,7 @@ export interface DemoStepConfig {
   title: string;
   targetFeature: string;
   narrative: string;
+  speechText: string;
   apiEndpoint: string;
   apiMethod: 'GET' | 'POST';
   apiPayloadDescription: string;
@@ -58,6 +61,8 @@ const DEMO_STEPS: DemoStepConfig[] = [
     targetFeature: 'Guidelines Repository & Policy Codification',
     narrative:
       'BrandPrint AI codifies enterprise brand voice, legal disclaimers, prohibited superlatives, and technical SLAs into deterministic rules and vector embeddings. Here, 24 active guidelines across FTC compliance, B2B tone, and WCAG accessibility are stored and indexed.',
+    speechText:
+      'BrandPrint AI codifies enterprise brand voice, legal disclaimers, and prohibited superlatives into deterministic rules and vector embeddings.',
     apiEndpoint: '/api/guidelines?brand_id=1',
     apiMethod: 'GET',
     apiPayloadDescription: '{ brand_id: 1, is_active: true }',
@@ -71,6 +76,8 @@ const DEMO_STEPS: DemoStepConfig[] = [
     targetFeature: 'Multi-Modal Parser & Rule Indexing',
     narrative:
       'Instead of tedious manual rule entry, BrandPrint AI ingests multi-page PDF whitepapers, PPTX decks, and live URLs. The AI parses complex corporate documents into atomic, verifiable compliance constraints without altering your existing database (using preview_only mode).',
+    speechText:
+      'Ingest documents and guidelines from PDFs, DOCX, and live web sources with automated OCR and rule indexing.',
     apiEndpoint: '/api/guidelines/upload-document [preview_only=true]',
     apiMethod: 'POST',
     apiPayloadDescription: 'FormData(file=compliance_whitepaper.pdf, preview_only=true)',
@@ -84,6 +91,8 @@ const DEMO_STEPS: DemoStepConfig[] = [
     targetFeature: 'Dual Independent Scroll & Evidence Highlights',
     narrative:
       'Submitted marketing copy is audited in real-time against active brand rules. Notice how unverified rankings ("cheapest solution and #1 platform") and absolute uptime promises ("100% infallible uptime") are flagged on the left, with exact policy citations and one-click fixes on the right.',
+    speechText:
+      'Audit multi-modal marketing copy in real-time using deterministic filters, semantic vector guards, and Gemini evaluation.',
     apiEndpoint: '/api/reviews',
     apiMethod: 'POST',
     apiPayloadDescription: '{ brand_id: 1, raw_content: "Discover AstraForge Enterprise Cloud..." }',
@@ -97,6 +106,8 @@ const DEMO_STEPS: DemoStepConfig[] = [
     targetFeature: 'Multi-Asset Benchmarking & Auto-Coronation',
     narrative:
       'Marketing teams can benchmark up to 3 campaign variants simultaneously. The comparison engine objectively calculates guideline penalties, analyzes tone alignment, and crowns Slot C as the Best Compliant Variant with an executive sign-off rationale.',
+    speechText:
+      'Compare up to three assets side-by-side to evaluate compliance deltas and crown the production-ready winner.',
     apiEndpoint: '/api/reviews/compare',
     apiMethod: 'POST',
     apiPayloadDescription: '{ brand_id: 1, slot_a: {...}, slot_b: {...}, slot_c: {...} }',
@@ -110,6 +121,8 @@ const DEMO_STEPS: DemoStepConfig[] = [
     targetFeature: 'Cross-Document Semantic Drift Scanner',
     narrative:
       'Internal guidelines often conflict across departments. BrandPrint AI runs autonomous scans across all active documents to uncover policy paradoxes—such as conflicting uptime SLAs (99.9% vs 99.999%)—and provides legal reconciliation strategies (Amend, Deactivate, Merge).',
+    speechText:
+      'Scan company rulebooks to detect pairwise contradictions, regulatory gaps, and conflicting policies.',
     apiEndpoint: '/api/guidelines/check-contradictions?brand_id=1',
     apiMethod: 'POST',
     apiPayloadDescription: '{ brand_id: 1 }',
@@ -123,6 +136,8 @@ const DEMO_STEPS: DemoStepConfig[] = [
     targetFeature: 'Chronological Timeline & 1-Click Session Restore',
     narrative:
       'Every audit and comparison session is automatically persisted to an immutable history timeline with SHA-256 prompt digests. Compliance officers can restore exact sessions with a single click, satisfying enterprise regulatory benchmarks.',
+    speechText:
+      'Review all past audit sessions with search filters, exact date groupings, and complete session replay.',
     apiEndpoint: '/api/history?category=ALL',
     apiMethod: 'GET',
     apiPayloadDescription: '{ category: "ALL" }',
@@ -164,6 +179,26 @@ export const LiveDemoExperience: React.FC = () => {
     extractedCount: number;
     rules: Array<{ code: string; text: string; category: string }>;
   } | null>(null);
+
+  // Voice Assistance state initialized from localStorage
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('brandprint_director_voice');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+  const synthRef = useRef<SpeechSynthesis | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      synthRef.current = window.speechSynthesis;
+    }
+
+    return () => {
+      if (synthRef.current) {
+        synthRef.current.cancel();
+      }
+    };
+  }, []);
 
   const currentStepConfig = DEMO_STEPS[demoStep - 1] || DEMO_STEPS[0];
 
@@ -321,16 +356,120 @@ export const LiveDemoExperience: React.FC = () => {
     return () => clearInterval(timer);
   }, [isLiveDemoActive, isDemoPaused, isConclusionOpen, demoStep, setDemoStep]);
 
+  // Speech narration helper
+  const speakStep = useCallback(
+    (stepNumber: number, rateOverride?: number) => {
+      if (!synthRef.current || !isVoiceEnabled || !isLiveDemoActive || isConclusionOpen) return;
+
+      synthRef.current.cancel();
+
+      const stepConfig = DEMO_STEPS[stepNumber - 1];
+      if (!stepConfig) return;
+
+      const rate = rateOverride !== undefined ? rateOverride : demoSpeed;
+      const utterance = new SpeechSynthesisUtterance(stepConfig.speechText);
+      utterance.rate = rate;
+      utterance.pitch = 1.0;
+
+      // Select natural English voice if available
+      const voices = synthRef.current.getVoices();
+      const naturalVoice = voices.find(
+        (v) =>
+          v.lang.startsWith('en') &&
+          (v.name.includes('Natural') ||
+            v.name.includes('Google') ||
+            v.name.includes('Jenny') ||
+            v.name.includes('Samantha'))
+      );
+      if (naturalVoice) {
+        utterance.voice = naturalVoice;
+      }
+
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+
+      synthRef.current.speak(utterance);
+    },
+    [isVoiceEnabled, isLiveDemoActive, isConclusionOpen, demoSpeed]
+  );
+
+  // Synchronize Voice Narration on step transitions
+  useEffect(() => {
+    if (!isLiveDemoActive || isConclusionOpen) {
+      if (synthRef.current) {
+        synthRef.current.cancel();
+      }
+      setIsSpeaking(false);
+      return;
+    }
+
+    if (isVoiceEnabled && !isDemoPaused) {
+      speakStep(demoStep);
+    } else if (synthRef.current && !isVoiceEnabled) {
+      synthRef.current.cancel();
+      setIsSpeaking(false);
+    }
+  }, [demoStep, isLiveDemoActive, isVoiceEnabled, isDemoPaused, isConclusionOpen, speakStep]);
+
+  // Voice mute/unmute toggle with localStorage persistence
+  const toggleVoice = () => {
+    const nextState = !isVoiceEnabled;
+    setIsVoiceEnabled(nextState);
+    localStorage.setItem('brandprint_director_voice', String(nextState));
+
+    if (!nextState) {
+      if (synthRef.current) {
+        synthRef.current.cancel();
+      }
+      setIsSpeaking(false);
+    } else {
+      speakStep(demoStep);
+    }
+  };
+
+  // Playback rate sync
+  const handleSpeedChange = (spd: number) => {
+    setDemoSpeed(spd);
+    if (isVoiceEnabled && isSpeaking && synthRef.current) {
+      speakStep(demoStep, spd);
+    }
+  };
+
+  // Synchronized pause/resume
+  const handleTogglePause = () => {
+    const nextPaused = !isDemoPaused;
+    setDemoPaused(nextPaused);
+
+    if (synthRef.current && isVoiceEnabled) {
+      if (nextPaused) {
+        if (synthRef.current.speaking) {
+          synthRef.current.pause();
+        }
+      } else {
+        if (synthRef.current.paused) {
+          synthRef.current.resume();
+        } else if (!isSpeaking && !isConclusionOpen) {
+          speakStep(demoStep);
+        }
+      }
+    }
+  };
+
   // Keyboard navigation for demo
   useEffect(() => {
     if (!isLiveDemoActive) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (synthRef.current) {
+          synthRef.current.cancel();
+        }
+        setIsSpeaking(false);
         stopLiveDemo();
       } else if (e.key === ' ') {
         e.preventDefault();
-        setDemoPaused((prev) => !prev);
+        handleTogglePause();
       } else if (e.key === 'ArrowRight') {
         if (demoStep < DEMO_STEPS.length) {
           setDemoStep(demoStep + 1);
@@ -346,7 +485,7 @@ export const LiveDemoExperience: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isLiveDemoActive, demoStep, setDemoStep, setDemoPaused, stopLiveDemo]);
+  }, [isLiveDemoActive, demoStep, setDemoStep, handleTogglePause, stopLiveDemo]);
 
   if (!isLiveDemoActive) return null;
 
@@ -354,6 +493,10 @@ export const LiveDemoExperience: React.FC = () => {
     if (demoStep < DEMO_STEPS.length) {
       setDemoStep(demoStep + 1);
     } else {
+      if (synthRef.current) {
+        synthRef.current.cancel();
+      }
+      setIsSpeaking(false);
       setIsConclusionOpen(true);
     }
   };
@@ -365,6 +508,10 @@ export const LiveDemoExperience: React.FC = () => {
   };
 
   const handleRestartDemo = () => {
+    if (synthRef.current) {
+      synthRef.current.cancel();
+    }
+    setIsSpeaking(false);
     setIsConclusionOpen(false);
     setDemoStep(1);
     setDemoPaused(false);
@@ -372,11 +519,19 @@ export const LiveDemoExperience: React.FC = () => {
   };
 
   const handleExitDemo = () => {
+    if (synthRef.current) {
+      synthRef.current.cancel();
+    }
+    setIsSpeaking(false);
     setIsConclusionOpen(false);
     stopLiveDemo();
   };
 
   const handleGetStarted = () => {
+    if (synthRef.current) {
+      synthRef.current.cancel();
+    }
+    setIsSpeaking(false);
     setIsConclusionOpen(false);
     stopLiveDemo();
     navigate('/studio');
@@ -429,7 +584,7 @@ export const LiveDemoExperience: React.FC = () => {
                 {[1, 1.5, 2].map((spd) => (
                   <button
                     key={spd}
-                    onClick={() => setDemoSpeed(spd)}
+                    onClick={() => handleSpeedChange(spd)}
                     className={`px-2 py-1 rounded-lg transition-colors cursor-pointer ${
                       demoSpeed === spd
                         ? 'bg-brand-amber text-brand-oceanDark font-extrabold shadow-xs'
@@ -441,6 +596,31 @@ export const LiveDemoExperience: React.FC = () => {
                   </button>
                 ))}
               </div>
+
+              {/* Voice Assistant Toggle */}
+              <button
+                type="button"
+                onClick={toggleVoice}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  isVoiceEnabled
+                    ? 'bg-amber-400 text-slate-950 shadow-sm'
+                    : 'bg-white/10 text-white/70 hover:bg-white/20'
+                }`}
+                title={isVoiceEnabled ? 'Voice is ON (Click to Mute)' : 'Voice is OFF (Click to Unmute)'}
+                id="btn-director-voice-toggle"
+              >
+                {isVoiceEnabled ? (
+                  <>
+                    <Volume2 className={`w-3.5 h-3.5 text-slate-950 ${isSpeaking ? 'animate-bounce' : ''}`} />
+                    <span>Voice ON</span>
+                  </>
+                ) : (
+                  <>
+                    <VolumeX className="w-3.5 h-3.5 text-white/60" />
+                    <span>Voice OFF</span>
+                  </>
+                )}
+              </button>
 
               <button
                 onClick={handleExitDemo}
@@ -504,7 +684,7 @@ export const LiveDemoExperience: React.FC = () => {
             <div className="flex items-center gap-2">
               {/* Play / Pause */}
               <button
-                onClick={() => setDemoPaused((prev) => !prev)}
+                onClick={handleTogglePause}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/20 transition-all cursor-pointer active:scale-95"
                 id="btn-demo-pause-resume"
                 title={isDemoPaused ? 'Resume Demo (Space)' : 'Pause Demo (Space)'}
