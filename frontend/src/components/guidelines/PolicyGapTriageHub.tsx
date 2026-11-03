@@ -32,6 +32,7 @@ export const PolicyGapTriageHub: React.FC<PolicyGapTriageHubProps> = ({ brandId,
   const [editRuleText, setEditRuleText] = useState('');
   const [editCategory, setEditCategory] = useState('tone');
   const [toast, setToast] = useState<string | null>(null);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
 
   const fetchGaps = async () => {
     setLoading(true);
@@ -52,13 +53,14 @@ export const PolicyGapTriageHub: React.FC<PolicyGapTriageHubProps> = ({ brandId,
 
   const handleAdopt = async (gap: GuidelineGap) => {
     setActionLoadingId(gap.id);
+    setErrorToast(null);
     try {
       await guidelinesApi.triageGap(gap.id, { action: 'ACCEPT_PROPOSAL' });
       setToast(`Proposal codified as active brand guideline & vectorized in FAISS!`);
       await fetchGaps();
       onRuleAdopted?.();
     } catch (err: any) {
-      alert(err?.response?.data?.detail || 'Failed to adopt gap as guideline rule.');
+      setErrorToast(err?.response?.data?.detail || err?.message || 'Failed to adopt gap as guideline rule.');
     } finally {
       setActionLoadingId(null);
     }
@@ -74,6 +76,7 @@ export const PolicyGapTriageHub: React.FC<PolicyGapTriageHubProps> = ({ brandId,
   const handleSaveRevised = async (gapId: number) => {
     if (!editRuleText.trim()) return;
     setActionLoadingId(gapId);
+    setErrorToast(null);
     try {
       await guidelinesApi.triageGap(gapId, {
         action: 'REVISE',
@@ -86,7 +89,7 @@ export const PolicyGapTriageHub: React.FC<PolicyGapTriageHubProps> = ({ brandId,
       await fetchGaps();
       onRuleAdopted?.();
     } catch (err: any) {
-      alert(err?.response?.data?.detail || 'Failed to save revised rule.');
+      setErrorToast(err?.response?.data?.detail || err?.message || 'Failed to save revised rule.');
     } finally {
       setActionLoadingId(null);
     }
@@ -94,12 +97,13 @@ export const PolicyGapTriageHub: React.FC<PolicyGapTriageHubProps> = ({ brandId,
 
   const handleDismiss = async (gapId: number) => {
     setActionLoadingId(gapId);
+    setErrorToast(null);
     try {
       await guidelinesApi.triageGap(gapId, { action: 'DISMISS' });
       setToast('Gap dismissed as intentional marketing exception.');
       await fetchGaps();
     } catch (err: any) {
-      alert(err?.response?.data?.detail || 'Failed to dismiss gap.');
+      setErrorToast(err?.response?.data?.detail || err?.message || 'Failed to dismiss gap.');
     } finally {
       setActionLoadingId(null);
     }
@@ -112,12 +116,24 @@ export const PolicyGapTriageHub: React.FC<PolicyGapTriageHubProps> = ({ brandId,
     <div className="space-y-6">
       {/* Toast Notification */}
       {toast && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center justify-between">
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center justify-between animate-in fade-in">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{toast}</span>
           </div>
-          <button onClick={() => setToast(null)} className="text-emerald-600 hover:text-emerald-900">
+          <button onClick={() => setToast(null)} className="text-emerald-600 hover:text-emerald-900 cursor-pointer">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {errorToast && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-center justify-between animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+            <span>{errorToast}</span>
+          </div>
+          <button onClick={() => setErrorToast(null)} className="text-red-600 hover:text-red-900 cursor-pointer">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>

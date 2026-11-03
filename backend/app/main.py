@@ -139,7 +139,12 @@ def execute_contradiction_audit_direct(payload: Optional[ContradictionRequest] =
 @app.get("/api/system-status", tags=["System"], summary="System status endpoint")
 @app.get("/api/ping", tags=["System"], summary="Ping endpoint")
 def system_status():
-    return {"status": "healthy", "service": "brandprint-core"}
+    return {
+        "status": "healthy",
+        "service": "brandprint-core",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "state": "warm"
+    }
 
 
 @app.get(

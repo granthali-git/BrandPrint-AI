@@ -47,11 +47,28 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Response interceptor: intercept unauthenticated requests and parse real backend feedback
+// Response interceptor: intercept unauthenticated requests, perform auto-retry, and parse real backend feedback
 apiClient.interceptors.response.use(
   (response) => response,
-  (error: any) => {
+  async (error: any) => {
+    const config = error?.config;
     const status = error?.response?.status;
+
+    // Retry conditions: 504 Gateway Timeout, 502 Bad Gateway, or transient Network Error / connection drop
+    const isNetworkGlitch =
+      !error?.response && (error?.message === 'Network Error' || error?.code === 'ECONNABORTED');
+    const isRetryable = status === 504 || status === 502 || isNetworkGlitch;
+
+    // Execute 1 automatic retry after 2.5s delay to seamlessly bridge Render cold-starts & transient glitches
+    if (config && isRetryable && !(config as any)._isRetry) {
+      (config as any)._isRetry = true;
+      console.warn(
+        `[BrandPrint AI Client] Transient ${status ? `HTTP ${status}` : 'network glitch'} on ${config.url}. Auto-retrying after 2.5s...`
+      );
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      return apiClient(config);
+    }
+
     if (status === 401) {
       console.warn('[BrandPrint AI Client] Unauthorized 401: Token may have expired.');
     }

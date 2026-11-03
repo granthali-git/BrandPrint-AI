@@ -64,11 +64,23 @@ const PublicAuthRoute: React.FC = () => {
 };
 
 export const App: React.FC = () => {
-  // Preemptively wake Render backend immediately on app launch so it's warm when user submits audits
+  // Preemptively wake Render backend immediately on app launch and keep-alive ping every 4 minutes
   useEffect(() => {
-    apiClient.get('/health', { timeout: 15000 }).catch(() => {
-      // Intentionally silent: first ping wakes up Render container if sleeping
-    });
+    const pingBackend = () => {
+      apiClient.get('/api/system-status', { timeout: 20000 }).catch(() => {
+        apiClient.get('/health', { timeout: 15000 }).catch(() => {
+          // Intentionally silent: first ping wakes up Render container if sleeping
+        });
+      });
+    };
+
+    // Initial warm-up ping
+    pingBackend();
+
+    // Silent periodic keep-alive ping every 4 minutes to prevent Render free-tier cold sleep
+    const keepAliveInterval = setInterval(pingBackend, 4 * 60 * 1000);
+
+    return () => clearInterval(keepAliveInterval);
   }, []);
 
   return (

@@ -20,16 +20,25 @@ export const Sidebar: React.FC = () => {
   // Active Health Monitor Hook polling /api/system-status on API_BASE_URL every 10 seconds
   const [isHealthy, setIsHealthy] = useState<boolean>(true);
   const [isChecking, setIsChecking] = useState<boolean>(false);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
 
   const checkStatus = useCallback(async () => {
     setIsChecking(true);
+    const startTime = performance.now();
     try {
       const res = await fetch(`${API_BASE_URL}/api/system-status`, { method: 'GET' });
-      if (res.ok) setIsHealthy(true);
-      else setIsHealthy(false);
+      const elapsed = Math.round(performance.now() - startTime);
+      if (res.ok) {
+        setIsHealthy(true);
+        setLatencyMs(elapsed);
+      } else {
+        setIsHealthy(false);
+        setLatencyMs(null);
+      }
     } catch (err) {
       console.warn("Status ping warning:", err);
       setIsHealthy(false);
+      setLatencyMs(null);
     } finally {
       setIsChecking(false);
     }
@@ -117,7 +126,7 @@ export const Sidebar: React.FC = () => {
             {isHealthy ? (
               <span
                 className="relative flex h-2.5 w-2.5 shrink-0"
-                title="Connected"
+                title={`Warm & Connected${latencyMs !== null ? ` • ${latencyMs}ms` : ''}`}
                 id="indicator-healthy-dot"
               >
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-sm" />
@@ -132,8 +141,10 @@ export const Sidebar: React.FC = () => {
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-amber" />
               </span>
             )}
-            <span className="text-white font-medium text-[11px] select-text">
-              {isHealthy ? 'Connected' : 'Reconnecting...'}
+            <span className="text-white font-medium text-[11px] select-text truncate">
+              {isHealthy
+                ? `Warm & Connected${latencyMs !== null ? ` • ${latencyMs}ms` : ''}`
+                : 'Reconnecting...'}
             </span>
           </div>
 
