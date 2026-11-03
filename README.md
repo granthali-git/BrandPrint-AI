@@ -1,92 +1,197 @@
-# BrandPrint AI 🛡️✨
+# BrandPrint AI — Autonomous Enterprise Brand Safety & Regulatory Governance
 
-> **Enterprise Brand Governance, Multi-Modal Compliance & Real-Time What-If Sandbox**
-
-BrandPrint AI is an enterprise-grade brand compliance, consistency auditing, and governance automation platform. It empowers global marketing, legal, and engineering teams to ingest complex brand guidelines from diverse document formats, verify brand adherence across multi-channel content, detect internal contradictions autonomously, and simulate copy revisions with real-time editorial suggestions and strategic impact scores.
+> Real-time multi-modal compliance engine codifying enterprise guidelines, verifying claims with FAISS semantic grounding, and executing 3-way comparative audits.
 
 ---
 
-## 🌟 Key Platform Capabilities
+## 📌 Executive Summary
 
-### 1. Multi-Format & Multi-Modal Document Ingestion
-- **Document Handbooks:** Native ingestion and chunking for `.pdf`, `.docx`, `.pptx`, and `.txt` files.
-- **SSRF-Protected Web Scraper:** Ingests live company brand wikis, Notion public handbooks, and public guideline URLs with strict domain validation and IPv4/IPv6 private IP filtering.
-- **Automated Rule Extraction:** Converts dense corporate policy PDFs into structured, atomic, vector-indexed compliance rules.
+Modern enterprise marketing teams publish thousands of multi-channel campaigns across digital ads, social media, landing pages, and print collateral. However, brand governance remains largely manual, fragmented, and vulnerable to severe regulatory liability:
+- **Disparate Rulebooks:** Brand guidelines, legal disclaimers, medical claim policies, and tone handbooks are trapped across lengthy PDFs, SharePoint wikis, and static presentations.
+- **Cross-Departmental Contradictions:** Departmental guidelines frequently clash (e.g., product teams promising "99.999% infallible uptime" while legal contracts limit SLAs to 99.9%).
+- **Superlative & Regulatory Exposure:** Unsubstantiated superlative claims ("#1 platform", "cheapest solution", "guaranteed results") trigger immediate FTC penalties, ASA investigations, and competitor litigation.
+- **Review Bottlenecks:** Human legal and brand safety teams cannot keep pace with high-velocity creative cycles, leading to delayed launches or risky unreviewed assets entering circulation.
 
-### 2. Autonomous Contradiction Detection Engine
-- Cross-references hundreds of guideline rules across departments (Legal, Marketing, Engineering, Design).
-- Identifies internal policy conflicts, SLA paradoxes, and licensing mismatches.
-- Resolves conflicts via a one-click **AI Rule Harmonizer** that drafts compromise rules and updates the knowledge base.
-
-### 3. Multi-Dimensional Inconsistency Detection Engine
-Evaluates submitted copy in a holistic secondary audit pass covering 6 critical dimensions:
-1. **🎭 Tone & Voice Inconsistency (`tone_inconsistency`):** Catches jarring shifts between enterprise B2B governance and colloquial internet slang.
-2. **🌐 Language & Dialect Shift (`language_style_shift`):** Detects regional spelling discrepancies (e.g., mixing UK `optimise` with US `color`), jargon overuse, and passive voice spikes.
-3. **📊 Factual & Numerical Drift (`factual_drift`):** Identifies conflicting SLA metrics (e.g., claiming 99.9% uptime on page 1 vs. 99.999% on page 3) with dual-excerpt comparison boxes.
-4. **⚠️ Contradictory Claims (`claim_conflict`):** Surfaces incompatible assertions (e.g., "100% open-source" combined with "proprietary vendor lock-in").
-5. **🎨 Visual Usage & Media Mentions (`visual_guideline_breach`):** Flags unapproved brand color hex codes (`neon green`, `#39FF14`) and improper typography rules.
-6. **♿ Accessibility & Readability (`accessibility_issue`):** Audits against WCAG 2.1 standards, highlighting extreme linguistic complexity (Flesch-Kincaid > Grade 16) and non-inclusive terminology.
-
-### 4. Interactive Pre-Flight "What-If" Simulator
-- Allows copywriters and compliance officers to test live edits and proposed rephrasing before production deployment.
-- Delivers real-time delta scorecards (Net Score, Resolved Violations, Remaining Hurdles, New Violations).
-- Computes projected **Strategic Business Benefits** (Brand Credibility, Regulatory Safety, Procurement Velocity, Accessibility Reach).
-
-### 5. Executive Governance Dashboard
-- Real-time audit readiness score and compliance adherence telemetry.
-- Categorical distribution charts, broken rule frequency heatmaps, and downloadable compliance certificates.
+**BrandPrint AI** solves this by delivering an autonomous, end-to-end brand safety and regulatory compliance platform. It converts static corporate handbooks into atomic, machine-verifiable constraints, grounds marketing content with vector similarity search (FAISS) and Google Gemini 1.5, executes side-by-side comparative variant scoring, and provides an immutable audit ledger with cryptographic verification.
 
 ---
 
-## 🎨 Enterprise Design System
+## 🛠️ Architecture & Tech Stack
 
-BrandPrint AI utilizes a curated, executive design palette crafted for deep contrast, legibility, and visual polish:
+```mermaid
+flowchart TD
+    subgraph Ingestion ["Multi-Modal Ingestion Engine"]
+        A1["Raw Copy / Headlines"] --> PII["PII & Sensitive Data Redaction"]
+        A2["Document Upload (PDF / DOCX / Image OCR)"] --> PII
+        A3["Live URL Scraper (SSRF Sandboxed)"] --> PII
+    end
 
-| Token Name | Hex Code | Purpose |
+    subgraph Grounding ["Enterprise Knowledge & Grounding"]
+        PII --> FAISS["Meta FAISS Vector Index (all-MiniLM-L6-v2)"]
+        CORPUS["Codified Brand Rulebook & Regulatory Benchmarks"] --> FAISS
+    end
+
+    subgraph Evaluation ["Hybrid Audit & Inference Core"]
+        FAISS --> DET["Deterministic RegEx & Constraint Filter"]
+        FAISS --> LLM["Google Gemini 1.5 Flash (Cloud) / Ollama Llama 3.2 (Local)"]
+        DET --> SCORE["Scoring Engine (0-100% Adherence)"]
+        LLM --> SCORE
+    end
+
+    subgraph Deliverables ["Executive Governance Studio"]
+        SCORE --> STUDIO["Dual Independent Scroll Review Studio"]
+        SCORE --> COMP["3-Way Asset Comparator & Auto-Winner Decision"]
+        SCORE --> GAPS["Autonomous Policy Gap Triage Hub"]
+        SCORE --> HIST["Chronological Session History & Cryptographic Ledger"]
+    end
+```
+
+### Technology Matrix
+
+| Layer | Component | Technologies & Frameworks |
 |---|---|---|
-| **Deep Ocean Teal** | `#0B3C49` | Primary brand identity, headers, navigation, active states |
-| **Ocean Dark** | `#072831` | Deep background containers, high-contrast modal backdrops |
-| **Warm Amber** | `#F4A321` | Call-to-actions, primary highlights, warning indicators |
-| **Amber Hover** | `#E09218` | Interactive button hover states |
-| **Warm Cream** | `#FBF9F4` | Canvas surfaces, secondary badge fills, input buffer zones |
-| **Sand Neutral** | `#E5E0D8` | Structural dividing borders and subtle card rings |
-| **Charcoal Dark** | `#1C2526` | High-readability editorial typography |
+| **Frontend UI/UX** | Single Page Application | React 18, TypeScript, Vite, Tailwind CSS, Plus Jakarta Sans, Lucide React |
+| **Speech & Audio** | Native Narration Engine | Web Speech Synthesis API (`window.speechSynthesis`) with voice selection & mute toggles |
+| **Backend API** | High-Throughput REST Core | Python 3.11+, FastAPI, Pydantic v2, Uvicorn, AnyIO |
+| **Database & ORM** | Relational Ledger & Auth | PostgreSQL (Supabase Connection Pooler) via SQLAlchemy 2.0 & Psycopg2 |
+| **Vector Grounding** | Semantic Rule Index | Meta FAISS (`faiss-cpu`), HuggingFace `sentence-transformers` (`all-MiniLM-L6-v2`) |
+| **LLM Inference** | Primary & Offline Fallbacks | Google Gemini 1.5 Flash (`google-generativeai`), Local Ollama (`llama3.2`), Deterministic Rules |
+| **Document & Web Parsing** | Multi-Modal Ingestion | PyMuPDF (`fitz`), `python-docx`, `python-pptx`, Tesseract OCR, BeautifulSoup4, HTTPX |
+| **Security & Privacy** | Sandboxed Execution | SSRF private IP validation, regex-based PII masking, JWT bearer auth with HMAC-SHA256 |
 
 ---
 
-## 🛠️ Technology Stack
+## 🚀 Key Functional Capabilities
 
-- **Backend Architecture:**
-  - **Framework:** FastAPI (Python 3.11+)
-  - **Database & ORM:** PostgreSQL (Supabase pooler) via SQLAlchemy & Psycopg2
-  - **Vector Semantic Search:** Meta FAISS (Facebook AI Similarity Search) with `all-MiniLM-L6-v2` embeddings
-  - **Generative AI:** Google Gemini 2.5 Flash (`generativelanguage.googleapis.com`) with automated local Ollama (`llama3.2`) and deterministic regex failover
-  - **Document Parsing:** `PyMuPDF` (PDFs), `python-docx` (Word), `python-pptx` (PowerPoint), `BeautifulSoup4` + `httpx` (Web Scraper)
-- **Frontend Architecture:**
-  - **Framework:** Vite + React (TypeScript)
-  - **Styling:** Vanilla Tailwind CSS with custom theme tokens
-  - **Icons:** Lucide React
-  - **State Management & Routing:** React Context API & React Router DOM 6
+### 1. Multi-Modal Ingestion Engine
+Inspect brand compliance across all common creative output channels:
+- **Raw Copy & Headlines:** Direct real-time evaluation for email copy, push notifications, headlines, and social posts.
+- **Document & Image Upload with OCR:** Extracts text from multi-page PDFs, Word documents, PowerPoint presentations, and promotional posters using multi-modal OCR.
+- **Live URL / Web Scraping (SSRF-Sandboxed):** Scrapes public landing pages and extract clean copy. Restricted to concise/short direct URLs with private IP filtering to prevent internal network probing.
+
+### 2. 3-Way Comparative Audits & Best Compliant Variant Decision
+Marketing teams benchmark up to 3 campaign variants (`Slot A`, `Slot B`, and `Slot C`) side-by-side:
+- **Objective Compliance Scoring:** Calculates baseline adherence scores (0–100%) against company guidelines.
+- **Deduction Breakdown:** Categorizes penalties by severity (Critical: -25 pts, Major: -15 pts, Minor: -5 pts).
+- **Auto-Winner Coronation:** The engine compares the scoring delta, tone alignment, and violation count to crown the **Best Compliant Variant** accompanied by an executive sign-off rationale.
+
+### 3. Brand Safety Codex & Deterministic Policy Enforcement
+Enforces enterprise guidelines across four critical governance categories:
+- **Prohibited Superlatives:** Flags unverified claims like *"#1 cloud provider"*, *"cheapest on the market"*, or *"unbeatable solution"*.
+- **Medical & Scientific Claims:** Enforces strict disclaimers on health, pharmaceutical, and wellness statements.
+- **FTC Substantiation:** Validates that promotional pricing, discount asterisks, and uptime guarantees (99.9% vs. 99.999%) have verifiable references.
+- **B2B Tone & Visual Integrity:** Detects colloquial internet slang, passive voice spikes, unapproved hex color codes (`#39FF14`), and WCAG accessibility contrast breaches.
+
+### 4. Autonomous Policy Gap Triage Hub
+Identifies emerging marketing claims not covered in current brand rulebooks:
+- **Gap Detection:** Distinguishes between *Uncovered Topics* and *Ambiguous Policies*.
+- **1-Click Policy Codification:** Review proposed rule revisions, edit criteria in-place, and adopt them directly into the active FAISS vector store.
+
+### 5. Integrated Voice Assistance (Text-to-Speech)
+Interactive audio narration powered by the native browser Web Speech API:
+- **Welcome Guide & Platform Tour:** Audio narration for first-time visitors walking through each core capability.
+- **Live Director Autopilot Bar:** Synchronized voice guidance across all 6 tour steps with rate adjustments (`1x`, `1.5x`, `2x`), step transition syncing, and spacebar pause/resume.
+- **Persistent User Mute Toggle:** Dedicated header and bar buttons (`Voice ON` / `Voice OFF`) with state persistence in `localStorage`.
+
+### 6. Chronological Audit History & Ledger Replay
+Maintains an immutable historical record matching modern ChatGPT and Gemini session interfaces:
+- **Chronological Date Grouping:** Automatic bucketing into *Today*, *Yesterday*, *Previous 7 Days*, and *Earlier (Month Year)*.
+- **Precise Badges:** Displays exact timestamps (`DD MMM YYYY • hh:mm A`) alongside relative time tags.
+- **1-Click State Replay:** Click any session card to restore previous inputs, extracted OCR copy, and AI finding highlights.
 
 ---
 
-## 🚀 Quickstart & Local Setup
+## 🔒 Confidentiality & PII Protection
+
+To protect trade secrets, unreleased campaign names, customer identifiers, and sensitive operational metrics, BrandPrint AI includes a pre-inference data sanitization layer:
+
+```
+[Raw Marketing Input]
+         │
+         ▼
+[Regex & Named Entity Masker]
+   ├── Customer Names & Emails ──> [REDACTED_USER_XXXX]
+   ├── Proprietary SKU Codes  ──> [INTERNAL_SKU_REF]
+   ├── Financial Figures      ──> [METRIC_REDACTED]
+   └── API Keys / Tokens      ──> [AUTH_SECRET_OMITTED]
+         │
+         ▼
+[Sanitized Payload Sent to Gemini / Local LLM]
+         │
+         ▼
+[Output De-Anonymized for Authorized Workspace Users]
+```
+
+- **Transparent Audit Logs:** Shows compliance leads exactly what was masked prior to network transmission.
+- **Deterministic Offline Processing:** Confidential documents can be evaluated entirely on-premise using Ollama and local FAISS vector embeddings without external API calls.
+
+---
+
+## 📡 Core API Reference
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/system-status` | `GET` | Lightweight system health & round-trip latency probe (`healthy`, `state: warm`). |
+| `/health` | `GET` | Detailed operational telemetry, database connection status, and CORS origins. |
+| `/api/auth/login` | `POST` | Authenticate user credentials and issue JSON Web Token (JWT). |
+| `/api/guidelines` | `GET` | Retrieve active brand rules, categories, and severity levels. |
+| `/api/guidelines/upload-document` | `POST` | Upload and parse PDFs/DOCX with automated rule extraction (`preview_only=true` supported). |
+| `/api/reviews` | `POST` | Execute full multi-modal audit on text copy, OCR image, or web URL. |
+| `/api/reviews/compare` | `POST` | Benchmark Slots A, B, and C with automated winner decision and penalty matrix. |
+| `/api/guidelines/check-contradictions` | `POST` | Autonomous pairwise contradiction audit across active brand rulebook. |
+| `/api/guidelines/gaps` | `GET` | Retrieve ungrounded claims and policy ambiguities for triage. |
+| `/api/history` | `GET` | Retrieve past audit sessions with search filters, SHA-256 digests, and pagination. |
+
+---
+
+## 🗺️ Product Roadmap (2026 - 2027)
+
+- [x] **Phase 1: Core Multi-Modal Audit & Contradiction Detection Engine**
+  - High-precision deterministic regex rules combined with Google Gemini 1.5 Flash.
+  - Multi-document parser (PDF, DOCX, PPTX) and SSRF-sandboxed web scraper.
+  - Dual independent scroll Review Studio with evidence highlight cards.
+
+- [x] **Phase 2: 3-Asset Comparison Engine with Guideline Scoring & Voice Narration**
+  - 3-slot comparative evaluation matrix with automatic winner coronation.
+  - Native Web Speech Synthesis integration across Onboarding Guide and Live Director bar.
+  - Chronological audit history with 1-click session restoration.
+
+- [ ] **Phase 3 (Q1 2027): Direct Figma & Adobe Creative Cloud Automated Design Plugin**
+  - Live canvas auditing inside Figma to check typography, layer contrast, and color palette codes.
+  - Adobe InDesign & Illustrator extension for print collateral pre-flight sign-offs.
+
+- [ ] **Phase 4 (Q2 2027): Slack & MS Teams Webhook Bots for Automated Campaign Sign-Offs**
+  - Instant marketing campaign link review via `/brandprint check <url>` slash commands.
+  - One-click approval workflows for designated legal reviewers inside chat channels.
+
+- [ ] **Phase 5 (Q3 2027): Enterprise Single Sign-On (SAML / Okta) & Localized Legal Codices**
+  - Enterprise SSO integration (Okta, Azure AD, Ping Identity).
+  - Out-of-the-box regulatory packs: EU AI Act transparency rules, HIPAA healthcare claims, and UK ASA / Indian ASCI advertising codes.
+
+---
+
+## ⚙️ Local Development Setup
 
 ### Prerequisites
-- Python 3.11+
-- Node.js 18+ and `npm`
-- (Optional) Local [Ollama](https://ollama.ai/) instance for offline LLM fallback
+- **Python 3.11+** installed and added to PATH
+- **Node.js 18+** and `npm`
+- **Git**
 
-### 1. Backend Setup
+### 1. Clone the Repository
+```bash
+git clone https://github.com/granthali-git/BrandPrint-AI.git
+cd BrandPrint-AI
+```
 
+### 2. Backend Setup (Port 8001)
 ```bash
 # Navigate to backend directory
 cd backend
 
-# Create and activate virtual environment
+# Create and activate Python virtual environment
 python -m venv .venv
 
-# Windows Powershell:
+# Windows PowerShell:
 .venv\Scripts\Activate.ps1
 # macOS / Linux:
 source .venv/bin/activate
@@ -94,94 +199,40 @@ source .venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure environment variables
-cp .env.example .env
-# Edit .env with your Supabase DB URL and Gemini API Key
-```
-
-Run the FastAPI backend server (Port `8001`):
-```bash
+# Launch FastAPI backend server on port 8001
 uvicorn app.main:app --reload --port 8001
 ```
 
-Backend API Docs will be available at: `http://localhost:8001/docs`  
-Health check endpoint: `http://localhost:8001/health`
+> Backend Swagger documentation will be available at: `http://localhost:8001/docs`  
+> Live health endpoint: `http://localhost:8001/health`
 
-### 2. Frontend Setup
-
+### 3. Frontend Setup (Port 5173)
+Open a new terminal window:
 ```bash
 # Navigate to frontend directory
 cd frontend
 
-# Install Node dependencies
+# Install dependencies
 npm install
 
-# Configure environment variables
-cp .env.example .env
-# Verify VITE_API_BASE_URL=http://localhost:8001
-```
-
-Run the Vite frontend dev server (Port `5173` or `5174`):
-```bash
+# Launch Vite development server on port 5173
 npm run dev
 ```
 
-Open your browser at `http://localhost:5173` (or `http://localhost:5174`).
+> Open your browser at: `http://localhost:5173`
 
 ---
 
-## 🧪 Verification & Default Credentials
+## 🧪 Default Test Credentials
 
-### Default Development User
-- **Email:** `admin@brandprint.ai` (or `tester@brandprint.ai`)
-- **Default Role:** Compliance Manager / Brand Lead
-
-### Live Verification Endpoints
-- **Run Content Review:** `POST /api/reviews`
-- **Audit Contradictions:** `GET /api/guidelines/contradictions/check?brand_id=1`
-- **Automated Rule Extraction:** `POST /api/guidelines/ingest-document`
-- **What-If Simulation:** `POST /api/reviews/{id}/what-if-simulate`
-- **Health Check:** `GET /health`
+For local development and testing:
+- **Email:** `tester@brandprint.ai` (or `admin@brandprint.ai`)
+- **Password:** `Password123!`
+- **Role:** Brand Safety Admin / Compliance Lead
 
 ---
 
-## 📁 Repository Structure
+## 📄 License & Intellectual Property
 
-```
-codex48/
-├── backend/
-│   ├── app/
-│   │   ├── core/           # Security, JWT, DB engine, and App Settings
-│   │   ├── models/         # SQLAlchemy ORM models (Brand, Guideline, Finding, etc.)
-│   │   ├── routes/         # FastAPI endpoints (Reviews, Guidelines, Contradictions)
-│   │   ├── schemas/        # Pydantic request/response validation schemas
-│   │   └── services/       # AI Service, FAISS Retriever, Web Scraper, Ingestion Engine
-│   ├── requirements.txt    # Python dependencies
-│   ├── .env.example        # Backend environment template
-│   └── test_all_inconsistencies.py # Automated regression suite
-├── frontend/
-│   ├── src/
-│   │   ├── api/            # Typed Axios clients for Backend API
-│   │   ├── components/     # FindingCard, WhatIfSimulator, AddRuleModal, Sidebar
-│   │   ├── pages/          # ReviewStudio, Guidelines, Dashboard, AuditPage
-│   │   ├── types/          # TypeScript domain interfaces
-│   │   └── App.tsx         # Main application routes and theme provider
-│   ├── package.json        # Frontend dependencies and scripts
-│   ├── tailwind.config.js  # Theme palette and styling tokens
-│   └── .env.example        # Frontend environment template
-├── .gitignore              # Strict secret and build output exclusion list
-└── README.md               # Enterprise platform documentation
-```
-
----
-
-## 🔒 Security & Compliance
-
-- **No Secrets in Repo:** All database connection strings, JWT signing keys, and Gemini API keys are isolated in local `.env` files and excluded via `.gitignore`.
-- **SSRF Protection:** Web scraping pipeline utilizes private subnet lookups and IP blacklisting to protect against unauthorized internal server access.
-- **Fail-Safe Fallbacks:** Deterministic regex engines and local Ollama ensure high availability even when external AI API quotas are exhausted.
-
----
-
-## 📄 License
-Enterprise Commercial — All Rights Reserved © BrandPrint AI.
+Enterprise Commercial Evaluation — All Rights Reserved © 2026 BrandPrint AI.
+Built with Google Gemini, Meta FAISS, and FastAPI.
