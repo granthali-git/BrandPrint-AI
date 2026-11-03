@@ -82,7 +82,13 @@ const steps: GuideStep[] = [
 export const WelcomeGuideModal: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
+
+  // Initialize voice preference from localStorage (defaults to true if not set)
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('brandprint_voice_enabled');
+    return saved !== null ? saved === 'true' : true;
+  });
+
   const [isSpeaking, setIsSpeaking] = useState(false);
   const synthRef = useRef<SpeechSynthesis | null>(null);
 
@@ -167,14 +173,14 @@ export const WelcomeGuideModal: React.FC = () => {
     setIsOpen(false);
   };
 
-  const toggleVoice = () => {
-    if (isVoiceEnabled && synthRef.current) {
+  const toggleVoicePreference = () => {
+    const nextState = !isVoiceEnabled;
+    setIsVoiceEnabled(nextState);
+    localStorage.setItem('brandprint_voice_enabled', String(nextState));
+
+    if (!nextState && synthRef.current) {
       synthRef.current.cancel();
-      setIsVoiceEnabled(false);
       setIsSpeaking(false);
-    } else {
-      setIsVoiceEnabled(true);
-      speakCurrentStep(currentStep);
     }
   };
 
@@ -208,29 +214,27 @@ export const WelcomeGuideModal: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Voice Assistant Toggle & Animated Waveform */}
+            {/* Direct Voice Assistance ON/OFF Toggle */}
             <button
-              onClick={toggleVoice}
-              className={`p-2 rounded-xl transition-all flex items-center gap-1.5 text-xs font-medium cursor-pointer ${
+              onClick={toggleVoicePreference}
+              className={`px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
                 isVoiceEnabled
-                  ? 'bg-[#F4A321] text-slate-900 shadow-sm'
-                  : 'bg-white/10 text-white/70 hover:bg-white/20'
+                  ? 'bg-[#F4A321] text-slate-900 border-[#F4A321] shadow-sm'
+                  : 'bg-white/10 text-white/80 border-white/20 hover:bg-white/20'
               }`}
-              title={isVoiceEnabled ? 'Mute Voice Assistance' : 'Enable Voice Narration'}
+              title={isVoiceEnabled ? 'Voice is ON (Click to Mute)' : 'Voice is OFF (Click to Listen)'}
               id="btn-toggle-voice"
             >
-              {isVoiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-              <span className="hidden sm:inline">
-                {isVoiceEnabled ? (isSpeaking ? 'Speaking...' : 'Voice On') : 'Muted'}
-              </span>
-
-              {/* Animated Audio Waveform when Speaking */}
-              {isSpeaking && (
-                <div className="flex items-center gap-0.5 h-3 px-0.5">
-                  <span className="w-0.5 bg-slate-900 rounded-full animate-bounce h-2" />
-                  <span className="w-0.5 bg-slate-900 rounded-full animate-bounce h-3" />
-                  <span className="w-0.5 bg-slate-900 rounded-full animate-bounce h-1.5" />
-                </div>
+              {isVoiceEnabled ? (
+                <>
+                  <Volume2 className="w-4 h-4 animate-pulse text-slate-900" />
+                  <span>Voice ON</span>
+                </>
+              ) : (
+                <>
+                  <VolumeX className="w-4 h-4 text-white/70" />
+                  <span>Voice OFF</span>
+                </>
               )}
             </button>
 
